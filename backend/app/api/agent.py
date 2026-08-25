@@ -39,18 +39,21 @@ Your job is to generate accurate, optimal PostgreSQL SELECT queries to answer of
 DATABASE SCHEMA:
 1. `complaint`: Main complaint table
    - id (INT, Primary Key)
-   - complaint_no (VARCHAR)
+   - complaint_number (VARCHAR, e.g. 'CMP100234')
+   - title (VARCHAR)
+   - description (TEXT)
    - created_at (TIMESTAMP)
    - closed_at (TIMESTAMP, NULL if pending/open)
+   - resolved_at (TIMESTAMP)
    - department_id (INT, FK -> department_master.id)
    - ward_id (INT, FK -> ward_master.id)
    - prabhag_id (INT, FK -> prabhag_master.id)
    - category_id (INT, FK -> category_master.id)
    - status_id (INT, FK -> status_master.id)
    - assigned_to_id (INT, FK -> user_master.id)
-   - location_address (TEXT)
-   - description (TEXT)
-   - citizen_feedback_rating (INT)
+   - address (TEXT)
+   - landmark (VARCHAR)
+   - sla_status (VARCHAR, e.g. 'BREACHED', 'ON_TIME')
 
 2. `department_master`:
    - id (INT, PK)
@@ -129,15 +132,19 @@ def execute_sql_query(sql: str) -> tuple[List[str], List[dict]]:
         rows = [dict(zip(columns, row)) for row in result.fetchmany(20000)]
         return columns, rows
 
+from app.db.dynamic_schema import fetch_live_database_schema
 from app.api.llm_client import call_gemini_with_key_rotation
 
 @router.post("/agent", response_model=AgentQueryResponse)
 def execute_agent_query(req: AgentQueryRequest):
     start_time = time.time()
     
+    live_schema_context = fetch_live_database_schema()
+    
     conversation_history = [
-        {"role": "user", "parts": [f"{DB_SCHEMA_CONTEXT}\n\nOfficer Question: {req.question}\n\nGenerate the PostgreSQL SQL query enclosed in ```sql ... ``` to retrieve the necessary data for this question."]}
+        {"role": "user", "parts": [f"{live_schema_context}\n\nOfficer Question: {req.question}\n\nGenerate the PostgreSQL SQL query enclosed in ```sql ... ``` to retrieve the necessary data for this question."]}
     ]
+
 
     sql_used = ""
     columns = []

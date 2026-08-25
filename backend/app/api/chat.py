@@ -12,6 +12,7 @@ from dotenv import load_dotenv
 
 from app.db.session import get_metadata_db, sync_pmc_engine
 from app.db.models import ChatSession, ChatMessage
+from app.db.dynamic_schema import fetch_live_database_schema
 from app.execution.validator import SQLSafetyValidator, SQLValidationError
 from app.api.agent import extract_sql_from_response, execute_sql_query, DB_SCHEMA_CONTEXT
 
@@ -154,16 +155,18 @@ def post_chat_message(session_id: str, payload: ChatMessageRequest, db: Session 
     
     db.commit()
 
-    # Build multi-turn conversation context for Gemini
+    # Build multi-turn conversation context for Gemini with LIVE DYNAMIC SCHEMA
     history_msgs = db.query(ChatMessage).filter(ChatMessage.session_id == session.id).order_by(ChatMessage.created_at.asc()).all()
-    
-    prompt_context = [DB_SCHEMA_CONTEXT, "\n--- CONVERSATION HISTORY ---"]
+    live_schema_context = fetch_live_database_schema()
+    prompt_context = [live_schema_context, "\n--- CONVERSATION HISTORY ---"]
     for m in history_msgs[:-1]:  # previous turns
         prompt_context.append(f"{'Officer' if m.sender == 'user' else 'Assistant'}: {m.content}")
         if m.sql_used:
             prompt_context.append(f"SQL Used: {m.sql_used}")
+
     
     prompt_context.append(f"\nOfficer (Current Question): {payload.content}\n\nGenerate the PostgreSQL SQL query enclosed in ```sql ... ``` to retrieve data for this question.")
+
 
     start_time = time.time()
     sql_used = ""
