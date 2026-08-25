@@ -41,3 +41,13 @@ yarn-error.log*
 *.sqlite
 *.sqlite3
 app_metadata.db
+
+
+
+how many complaints are pending for the Dept Drainage officer? 
+how many complaints has been registered in the last month for Baner?
+
+
+I have an indea....
+Can we able to design the system in a way that the user will type the questions on the frontend website, then i will sent the same question to you(Antigravity/Gemini 3.6 Flash (High)) then you will do the same operations as same you do for the (how many complaints are pending for the Dept Drainage officer? 
+how many complaints has been registered in the last month for Baner?) these questions.... then verify the answers are right for the question asked... if wrong then again do the operations and generete new answer... else if answer is correnct/relevant  to question, then give it back to me in a .md format, then i will show the answers to the officer on the frontend webpage... 
