@@ -32,84 +32,15 @@ class AgentQueryResponse(BaseModel):
     retry_count: int
     status: str
 
-DB_SCHEMA_CONTEXT = """
-You are an expert PostgreSQL Data Analyst AI for the Pune Municipal Corporation (PMC) Grievance & Officer Query System.
-Your job is to generate accurate, optimal PostgreSQL SELECT queries to answer officer questions.
+from app.db.dynamic_schema import fetch_live_database_schema
 
-DATABASE SCHEMA:
-1. `complaint`: Main complaint table
-   - id (INT, Primary Key)
-   - complaint_number (VARCHAR, e.g. 'CMP100234')
-   - title (VARCHAR)
-   - description (TEXT)
-   - created_at (TIMESTAMP)
-   - closed_at (TIMESTAMP, NULL if pending/open)
-   - resolved_at (TIMESTAMP)
-   - department_id (INT, FK -> department_master.id)
-   - ward_id (INT, FK -> ward_master.id)
-   - prabhag_id (INT, FK -> prabhag_master.id)
-   - category_id (INT, FK -> category_master.id)
-   - status_id (INT, FK -> status_master.id)
-   - assigned_to_id (INT, FK -> user_master.id)
-   - address (TEXT)
-   - landmark (VARCHAR)
-   - sla_status (VARCHAR, e.g. 'BREACHED', 'ON_TIME')
+# Continuous Dynamic Schema Alteration Inspector (Refreshes live from PostgreSQL information_schema)
+def get_db_schema_context() -> str:
+    return fetch_live_database_schema()
 
-2. `department_master`:
-   - id (INT, PK)
-   - department_name (VARCHAR, e.g. 'Drainage', 'Road', 'Water Supply', 'Health', 'Solid Waste Management', 'Electricity')
-   - department_name_mar (VARCHAR, Marathi name e.g. 'मलनिःसारण', 'पथ विभाग')
-   - department_code (VARCHAR)
+# Backward compatibility alias
+DB_SCHEMA_CONTEXT = property(lambda self: fetch_live_database_schema())
 
-3. `ward_master`:
-   - id (INT, PK)
-   - ward_name (VARCHAR, e.g. 'Aundh - Baner', 'Kothrud - Bawdhan', 'Bibwewadi', 'Hadapsar', 'Kasba - Vishrambaugwada')
-   - ward_name_mar (VARCHAR)
-   - ward_code (VARCHAR)
-   - ward_number (INT)
-
-4. `prabhag_master`:
-   - id (INT, PK)
-   - prabhag_name (VARCHAR, e.g. '9 Baner - Balewadi - Pashan', 'Sus - Baner - Pashan')
-   - ward_id (INT)
-
-5. `status_master`:
-   - id (INT, PK)
-   - status_name (VARCHAR: 'Registered', 'Assigned', 'Resolved', 'Closed - Not Valid', 'Closed', 'Pending Info', 'Transferred', 'Reopened', 'Escalated')
-   - status_name_mar (VARCHAR)
-
-6. `category_master`:
-   - id (INT, PK)
-   - category_name (VARCHAR)
-   - category_name_mar (VARCHAR)
-   - department_id (INT)
-   - default_sla_days (INT)
-
-7. `user_master`:
-   - id (INT, PK)
-   - full_name (VARCHAR, e.g. 'SUSHIL CHANDRAKANT MOHITE', 'Dept Drainage L1 Officer')
-   - full_name_mar (VARCHAR)
-   - employee_code (VARCHAR)
-   - designation (VARCHAR)
-   - user_type (VARCHAR: 'DEPT_L1', 'DEPT_L2', 'DEPT_L3', 'HOD', 'RECEPTION', 'CITIZEN')
-   - department_id (INT)
-   - ward_id (INT)
-
-8. `vw_dd_late_complaints`: View of complaints that breached SLA
-   - id (INT)
-   - complaint_no (VARCHAR)
-   - department_id (INT)
-   - ward_id (INT)
-   - assigned_to_id (INT)
-   - created_at (TIMESTAMP)
-
-IMPORTANT GUIDELINES:
-- Output ONLY valid PostgreSQL SELECT queries enclosed within ```sql ... ``` code blocks during query generation.
-- Never use non-SELECT statements (no INSERT, UPDATE, DELETE, DROP, ALTER).
-- When searching names/locations, use case-insensitive ILIKE pattern matching e.g. `u.full_name ILIKE '%MOHITE%'` or `w.ward_name ILIKE '%baner%'`.
-- "Pending" complaints are defined as `closed_at IS NULL AND status_id NOT IN (3, 4)` (where status 3 is Resolved and 4 is Closed - Not Valid) OR `closed_at IS NULL`.
-- Always aggregate data (`COUNT(*)`, `AVG()`, `GROUP BY`) when answering summary/count questions.
-"""
 
 def extract_sql_from_response(text: str) -> Optional[str]:
     match = re.search(r"```sql\s*(.*?)\s*```", text, re.DOTALL | re.IGNORECASE)

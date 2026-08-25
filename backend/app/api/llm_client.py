@@ -17,12 +17,14 @@ def call_openrouter_api(contents: str, models: Optional[List[str]] = None) -> Op
     if not OPENROUTER_API_KEY:
         return None
 
+    # Enterprise Open-Source Models (Hosted via OpenRouter, Free Production/Commercial Licenses)
     model_candidates = models or [
-        "google/gemini-2.5-flash",
-        "google/gemini-2.0-flash-001",
-        "meta-llama/llama-3.3-70b-instruct",
-        "anthropic/claude-3.5-haiku"
+        "meta-llama/llama-3.3-70b-instruct",     # Llama 3.3 Community License (Free Production/Enterprise)
+        "qwen/qwen-2.5-coder-32b-instruct",       # Apache 2.0 License (100% Open Source Commercial License)
+        "deepseek/deepseek-r1-distill-llama-70b", # MIT / Llama License (Free Commercial License)
+        "meta-llama/llama-3.1-8b-instruct"        # Llama 3.1 Community License (Free Commercial)
     ]
+
 
     headers = {
         "Authorization": f"Bearer {OPENROUTER_API_KEY.strip()}",

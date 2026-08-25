@@ -165,7 +165,14 @@ def post_chat_message(session_id: str, payload: ChatMessageRequest, db: Session 
             prompt_context.append(f"SQL Used: {m.sql_used}")
 
     
-    prompt_context.append(f"\nOfficer (Current Question): {payload.content}\n\nGenerate the PostgreSQL SQL query enclosed in ```sql ... ``` to retrieve data for this question.")
+    prompt_context.append(f"\nOfficer (Current Question): {payload.content}\n\n"
+                          f"AUTONOMOUS QUERY GENERATION INSTRUCTIONS:\n"
+                          f"- Inspect the Live Database Schema and Live Sample Column Values provided above.\n"
+                          f"- For location/text matching, search using wildcard pattern `ILIKE '%term%'` across ward_name, prabhag_name, and address.\n"
+                          f"- For officer/staff queries, filter out citizen accounts (e.g. `user_type != 'CITIZEN'`).\n"
+                          f"- Return ONLY valid PostgreSQL SELECT SQL enclosed within ```sql ... ``` block.")
+
+
 
 
     start_time = time.time()
