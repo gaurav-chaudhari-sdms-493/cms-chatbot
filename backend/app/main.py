@@ -6,7 +6,11 @@ from app.api.suggest import router as suggest_router
 from app.api.execute import router as execute_router
 from app.api.reference import router as reference_router
 from app.api.templates import router as templates_router
+from app.api.agent import router as agent_router
+from app.api.chat import router as chat_router
 from app.retrieval.embedder import embedding_service
+
+
 
 
 @asynccontextmanager
@@ -40,6 +44,10 @@ app.include_router(suggest_router, prefix="/api", tags=["Retrieval"])
 app.include_router(execute_router, prefix="/api", tags=["Execution"])
 app.include_router(reference_router, prefix="/api", tags=["Reference Options"])
 app.include_router(templates_router, prefix="/api", tags=["Developer Templates"])
+app.include_router(agent_router, prefix="/api", tags=["Gemini Agent Mode"])
+app.include_router(chat_router, prefix="/api", tags=["Chat History & Multi-Chat"])
+
+
 
 
 @app.get("/")

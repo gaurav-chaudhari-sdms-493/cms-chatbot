@@ -104,3 +104,69 @@ export async function deleteAdminTemplate(templateId: string): Promise<any> {
   }
   return await res.json();
 }
+
+export async function executeAgentQuery(question: string): Promise<any> {
+  const res = await fetch(`${API_BASE_URL}/query/agent`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ question: question, max_retries: 3 })
+  });
+  if (!res.ok) {
+    const errBody = await res.json();
+    throw new Error(errBody.detail || 'Agent query error');
+  }
+  return await res.json();
+}
+
+export async function fetchChatSessions(): Promise<any[]> {
+  const res = await fetch(`${API_BASE_URL}/chat/sessions`);
+  if (!res.ok) {
+    throw new Error('Failed to fetch chat sessions');
+  }
+  return await res.json();
+}
+
+export async function createChatSession(title: string = 'New Chat', mode: string = 'agent'): Promise<any> {
+  const res = await fetch(`${API_BASE_URL}/chat/sessions`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ title, mode })
+  });
+  if (!res.ok) {
+    throw new Error('Failed to create chat session');
+  }
+  return await res.json();
+}
+
+export async function fetchChatSessionById(sessionId: string): Promise<any> {
+  const res = await fetch(`${API_BASE_URL}/chat/sessions/${encodeURIComponent(sessionId)}`);
+  if (!res.ok) {
+    throw new Error('Failed to fetch chat session details');
+  }
+  return await res.json();
+}
+
+export async function deleteChatSession(sessionId: string): Promise<any> {
+  const res = await fetch(`${API_BASE_URL}/chat/sessions/${encodeURIComponent(sessionId)}`, {
+    method: 'DELETE'
+  });
+  if (!res.ok) {
+    throw new Error('Failed to delete chat session');
+  }
+  return await res.json();
+}
+
+export async function sendChatMessage(sessionId: string, content: string): Promise<any> {
+  const res = await fetch(`${API_BASE_URL}/chat/sessions/${encodeURIComponent(sessionId)}/message`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ content })
+  });
+  if (!res.ok) {
+    const errBody = await res.json();
+    throw new Error(errBody.detail || 'Failed to send chat message');
+  }
+  return await res.json();
+}
+
+

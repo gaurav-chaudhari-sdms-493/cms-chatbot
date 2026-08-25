@@ -121,3 +121,57 @@ class QueryExecutionLog(Base):
         nullable=False,
         default=lambda: datetime.now(timezone.utc)
     )
+
+
+class ChatSession(Base):
+    """Stores chat session threads for multi-chat support."""
+
+    __tablename__ = "chat_sessions"
+
+    id = Column(String(50), primary_key=True)
+    title = Column(String(255), nullable=False)
+    mode = Column(String(50), nullable=False, default="agent")
+    created_at = Column(
+        DateTime(timezone=True),
+        nullable=False,
+        default=lambda: datetime.now(timezone.utc)
+    )
+    updated_at = Column(
+        DateTime(timezone=True),
+        nullable=False,
+        default=lambda: datetime.now(timezone.utc),
+        onupdate=lambda: datetime.now(timezone.utc)
+    )
+
+    messages = relationship(
+        "ChatMessage",
+        back_populates="session",
+        cascade="all, delete-orphan",
+        order_by="ChatMessage.created_at"
+    )
+
+
+class ChatMessage(Base):
+    """Stores individual messages within a chat session."""
+
+    __tablename__ = "chat_messages"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    session_id = Column(
+        String(50),
+        ForeignKey("chat_sessions.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True
+    )
+    sender = Column(String(20), nullable=False)  # 'user' or 'agent'
+    content = Column(Text, nullable=False)
+    sql_used = Column(Text, nullable=True)
+    execution_time_ms = Column(Float, nullable=True)
+    created_at = Column(
+        DateTime(timezone=True),
+        nullable=False,
+        default=lambda: datetime.now(timezone.utc)
+    )
+
+    session = relationship("ChatSession", back_populates="messages")
+

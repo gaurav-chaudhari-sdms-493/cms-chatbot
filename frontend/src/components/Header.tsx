@@ -1,22 +1,48 @@
 import React from 'react';
+import { PanelLeft } from 'lucide-react';
 
 interface HeaderProps {
   health: { status: string; database?: { department_master_rows?: number } } | null;
   activeTab: 'query' | 'developer';
   onTabChange: (tab: 'query' | 'developer') => void;
+  onToggleSidebar?: () => void;
+  isSidebarOpen?: boolean;
 }
 
-export const Header: React.FC<HeaderProps> = ({ health, activeTab, onTabChange }) => {
+export const Header: React.FC<HeaderProps> = ({ health, activeTab, onTabChange, onToggleSidebar, isSidebarOpen }) => {
   const isHealthy = health?.status === 'healthy';
 
   return (
     <header className="header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '16px' }}>
-      <div>
-        <h1 className="brand-title">PMC Officer Query System</h1>
-        <p className="brand-subtitle">
-          Controlled Natural Language Analytics Interface — Pune Municipal Corporation
-        </p>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+        {onToggleSidebar && (
+          <button
+            onClick={onToggleSidebar}
+            style={{
+              background: 'rgba(255, 255, 255, 0.05)',
+              border: '1px solid rgba(255, 255, 255, 0.1)',
+              borderRadius: '8px',
+              padding: '8px 10px',
+              color: '#94a3b8',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              transition: 'all 0.2s ease'
+            }}
+            title={isSidebarOpen ? 'Collapse Chat History Sidebar' : 'Open Chat History Sidebar'}
+          >
+            <PanelLeft size={20} color={isSidebarOpen ? '#38bdf8' : '#94a3b8'} />
+          </button>
+        )}
+        <div>
+          <h1 className="brand-title">PMC Officer Query System</h1>
+          <p className="brand-subtitle">
+            Controlled Natural Language Analytics Interface — Pune Municipal Corporation
+          </p>
+        </div>
       </div>
+
 
       <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
         {/* Navigation Tabs */}

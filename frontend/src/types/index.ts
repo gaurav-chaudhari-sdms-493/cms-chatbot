@@ -63,3 +63,33 @@ export interface AdminQueryTemplatePayload {
   version: number;
   placeholders: PlaceholderMetadata[];
 }
+
+export interface AgentQueryResponse {
+  question: string;
+  markdown_report: string;
+  sql_used: string;
+  execution_time_ms: number;
+  retry_count: number;
+  status: string;
+}
+
+export interface ChatMessageResponse {
+  id: number;
+  session_id: string;
+  sender: 'user' | 'agent';
+  content: string;
+  sql_used?: string | null;
+  execution_time_ms?: number | null;
+  created_at: string;
+}
+
+export interface ChatSessionDetailResponse {
+  id: string;
+  title: string;
+  mode: string;
+  created_at: string;
+  updated_at: string;
+  messages: ChatMessageResponse[];
+}
+
+

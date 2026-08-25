@@ -51,6 +51,16 @@ def get_metadata_session():
         pass
 
 
+def get_metadata_db():
+    """FastAPI dependency yielding a metadata DB session."""
+    db = MetadataSessionLocal()
+    try:
+        yield db
+    finally:
+        db.close()
+
+
+
 def check_sync_db_connection() -> dict:
     """Check connectivity to remote PMC database and local metadata database."""
     with sync_pmc_engine.connect() as conn:
