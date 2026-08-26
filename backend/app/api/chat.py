@@ -208,7 +208,8 @@ def post_chat_message(session_id: str, payload: ChatMessageRequest, db: Session 
     # Synthesis Stage
     if execution_success:
         synthesis_prompt = f"""
-You are the PMC Officer Query Assistant. Format a clear, detailed, executive-ready Markdown report to answer the officer's question based on the verified database output and conversation history.
+You are the PMC Grievance Intelligence AI Assistant for Pune Municipal Corporation.
+Format a beautiful, highly polished, executive-ready Markdown report card to answer the officer's question based on the verified database output and conversation history.
 
 Officer Question: {payload.content}
 SQL Executed:
@@ -219,11 +220,20 @@ SQL Executed:
 Database Output (Columns: {columns}):
 {rows[:100]} (Total Rows Returned: {len(rows)})
 
-FORMATTING RULES:
-1. Provide a clear Header (# Title) and Executive Summary.
-2. Use GitHub-style markdown tables for data presentation.
-3. Highlight key statistics.
+CRITICAL EXECUTIVE FORMATTING RULES:
+1. Provide a clean Header (# Title) and Executive Summary section.
+2. ALL TABLES MUST BE STRICTLY FORMATTED AS GITHUB-FLAVORED MARKDOWN TABLES WITH PIPES '|' AND HEADER DIVIDER BARS '| --- | --- |'.
+   Example Table Syntax:
+   | Status Name | Complaint Count | Percentage (%) |
+   | :--- | :---: | :---: |
+   | ✅ Resolved | **21,736** | **78.9%** |
+   | ❌ Closed - Not Valid | **4,557** | **16.5%** |
+
+3. Format all numbers with commas (e.g. `21,736` instead of `21736`, `4,557` instead of `4557`).
+4. Highlight key totals, summary metrics, and insights in blockquotes `>` or bold badges (e.g. **`21,736`**).
+5. Include relevant emoji indicators (📊, 🟢, 🔴, 🏆, 🏛️, 🛣️, 🦟, 🚰, 💡) to make the report visually engaging and executive-ready.
 """
+
         try:
             markdown_report, _ = call_gemini_with_key_rotation(synthesis_prompt)
         except Exception:

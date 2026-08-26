@@ -11,8 +11,10 @@ from dotenv import load_dotenv
 
 from app.db.session import sync_pmc_engine
 from app.execution.validator import SQLSafetyValidator, SQLValidationError
+from app.mcp.tools import execute_sql_query as mcp_execute_sql_query
 
 load_dotenv()
+
 
 logger = logging.getLogger("pmc_chatbot.agent")
 
@@ -52,16 +54,12 @@ def extract_sql_from_response(text: str) -> Optional[str]:
         return select_match.group(1).strip()
     return None
 
-def execute_sql_query(sql: str) -> tuple[List[str], List[dict]]:
-    SQLSafetyValidator.validate_sql(sql)
-    
-    with sync_pmc_engine.connect() as conn:
-        # Enforce 30s statement timeout
-        conn.execute(text("SET statement_timeout = 30000;"))
-        result = conn.execute(text(sql))
-        columns = list(result.keys())
-        rows = [dict(zip(columns, row)) for row in result.fetchmany(20000)]
-        return columns, rows
+def execute_sql_query(sql_query: str):
+    res = mcp_execute_sql_query(sql_query)
+    if res["status"] == "ERROR":
+        raise SQLValidationError(res["error"])
+    return res["columns"], res["rows"]
+
 
 from app.db.dynamic_schema import fetch_live_database_schema
 from app.api.llm_client import call_gemini_with_key_rotation
@@ -123,7 +121,8 @@ def execute_agent_query(req: AgentQueryRequest):
     # Synthesis Stage: Generate formatted Markdown Report
     if execution_success:
         synthesis_prompt = f"""
-You are the PMC Officer Query Assistant. Format a clear, detailed, executive-ready Markdown report to answer the officer's question based on the verified database output.
+You are the PMC Grievance Intelligence AI Assistant for Pune Municipal Corporation.
+Format a beautiful, highly polished, executive-ready Markdown report card to answer the officer's question based on the verified database output.
 
 Officer Question: {req.question}
 SQL Executed:
@@ -134,11 +133,20 @@ SQL Executed:
 Database Output (Columns: {columns}):
 {rows[:100]} (Total Rows Returned: {len(rows)})
 
-FORMATTING RULES:
-1. Provide a clear Header (# Title) and Executive Summary.
-2. Use GitHub-style markdown tables for data presentation.
-3. Highlight key statistics in blockquotes or badges.
+CRITICAL EXECUTIVE FORMATTING RULES:
+1. Provide a clean Header (# Title) and Executive Summary section.
+2. ALL TABLES MUST BE STRICTLY FORMATTED AS GITHUB-FLAVORED MARKDOWN TABLES WITH PIPES '|' AND HEADER DIVIDER BARS '| --- | --- |'.
+   Example Table Syntax:
+   | Status Name | Complaint Count | Percentage (%) |
+   | :--- | :---: | :---: |
+   | ✅ Resolved | **21,736** | **78.9%** |
+   | ❌ Closed - Not Valid | **4,557** | **16.5%** |
+
+3. Format all numbers with commas (e.g. `21,736` instead of `21736`, `4,557` instead of `4557`).
+4. Highlight key totals, summary metrics, and insights in blockquotes `>` or bold badges (e.g. **`21,736`**).
+5. Include relevant emoji indicators (📊, 🟢, 🔴, 🏆, 🏛️, 🛣️, 🦟, 🚰, 💡) to make the report visually engaging and executive-ready.
 """
+
         try:
             markdown_report, _ = call_gemini_with_key_rotation(synthesis_prompt)
         except Exception:

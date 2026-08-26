@@ -38,7 +38,8 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Register API routers
+from app.mcp.server import mcp_server
+
 app.include_router(health_router, prefix="/api", tags=["Health"])
 app.include_router(suggest_router, prefix="/api", tags=["Retrieval"])
 app.include_router(execute_router, prefix="/api", tags=["Execution"])
@@ -46,6 +47,10 @@ app.include_router(reference_router, prefix="/api", tags=["Reference Options"])
 app.include_router(templates_router, prefix="/api", tags=["Developer Templates"])
 app.include_router(agent_router, prefix="/api", tags=["Gemini Agent Mode"])
 app.include_router(chat_router, prefix="/api", tags=["Chat History & Multi-Chat"])
+
+# Mount Official Model Context Protocol (MCP) Server over SSE / JSON-RPC
+app.mount("/mcp", mcp_server.http_app())
+
 
 
 
