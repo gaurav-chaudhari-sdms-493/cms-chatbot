@@ -62,7 +62,7 @@ def execute_sql_query(sql_query: str):
 
 
 from app.db.dynamic_schema import fetch_live_database_schema
-from app.api.llm_client import call_gemini_with_key_rotation
+from app.api.llm_client import call_gemini_with_key_rotation, execute_fastmcp_agent_loop
 
 @router.post("/agent", response_model=AgentQueryResponse)
 def execute_agent_query(req: AgentQueryRequest):
@@ -70,11 +70,6 @@ def execute_agent_query(req: AgentQueryRequest):
     
     live_schema_context = fetch_live_database_schema()
     
-    conversation_history = [
-        {"role": "user", "parts": [f"{live_schema_context}\n\nOfficer Question: {req.question}\n\nGenerate the PostgreSQL SQL query enclosed in ```sql ... ``` to retrieve the necessary data for this question."]}
-    ]
-
-
     sql_used = ""
     columns = []
     rows = []
@@ -83,38 +78,17 @@ def execute_agent_query(req: AgentQueryRequest):
     last_error_msg = ""
     is_quota_error = False
 
-    for attempt in range(1, req.max_retries + 1):
-        try:
-            prompt_str = "\n".join([p["parts"][0] for p in conversation_history])
-            raw_text, _ = call_gemini_with_key_rotation(prompt_str)
-            
-            extracted_sql = extract_sql_from_response(raw_text)
-            if not extracted_sql:
-                raise ValueError("Could not find a valid SQL block in the response.")
-
-            sql_used = extracted_sql
-            logger.info(f"Attempt {attempt}: Executing SQL:\n{sql_used}")
-
-            # Execute SQL
-            columns, rows = execute_sql_query(sql_used)
+    try:
+        sql_used, columns, rows, steps_taken = execute_fastmcp_agent_loop(live_schema_context, req.question, max_steps=req.max_retries + 2)
+        if sql_used and len(rows) > 0:
             execution_success = True
-            retry_count = attempt - 1
-            break
+            retry_count = steps_taken - 1
+    except Exception as e:
+        logger.error(f"FastMCP Agent Query Error: {e}")
+        last_error_msg = str(e)
 
-        except (SQLValidationError, Exception) as err:
-            last_error_msg = str(err)
-            if "429" in last_error_msg or "RESOURCE_EXHAUSTED" in last_error_msg:
-                is_quota_error = True
-            logger.warning(f"Attempt {attempt} failed with error: {last_error_msg}")
-            
-            # Feed error back for self-correction
-            conversation_history.append({
-                "role": "user",
-                "parts": [
-                    f"Your SQL query execution failed with the following error:\n```\n{last_error_msg}\n```\n"
-                    f"Please correct the table/column names or SQL syntax based on the schema and generate the revised SQL query inside ```sql ... ```."
-                ]
-            })
+
+
 
     execution_time_ms = round((time.time() - start_time) * 1000, 2)
 
@@ -144,7 +118,7 @@ CRITICAL EXECUTIVE FORMATTING RULES:
 
 3. Format all numbers with commas (e.g. `21,736` instead of `21736`, `4,557` instead of `4557`).
 4. Highlight key totals, summary metrics, and insights in blockquotes `>` or bold badges (e.g. **`21,736`**).
-5. Include relevant emoji indicators (📊, 🟢, 🔴, 🏆, 🏛️, 🛣️, 🦟, 🚰, 💡) to make the report visually engaging and executive-ready.
+5. Include relevant emoji indicators to make the report visually engaging and executive-ready.
 """
 
         try:

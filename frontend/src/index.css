@@ -1,9 +1,30 @@
 :root {
+  --bg-dark: #f8fafc;
+  --bg-card: #ffffff;
+  --bg-card-hover: #f1f5f9;
+  --bg-sidebar: #ffffff;
+  --border-color: #e2e8f0;
+  --border-accent: rgba(99, 102, 241, 0.3);
+  --text-primary: #0f172a;
+  --text-secondary: #475569;
+  --text-muted: #64748b;
+  --accent-blue: #2563eb;
+  --accent-cyan: #0891b2;
+  --accent-emerald: #059669;
+  --accent-indigo: #4f46e5;
+  --accent-purple: #7c3aed;
+  --font-sans: 'Inter', system-ui, -apple-system, sans-serif;
+  --input-bg: #ffffff;
+  --input-border: #cbd5e1;
+}
+
+[data-theme="dark"] {
   --bg-dark: #090d16;
-  --bg-card: rgba(17, 24, 39, 0.75);
-  --bg-card-hover: rgba(31, 41, 55, 0.85);
-  --border-color: rgba(255, 255, 255, 0.1);
-  --border-accent: rgba(59, 130, 246, 0.4);
+  --bg-card: rgba(17, 24, 39, 0.85);
+  --bg-card-hover: rgba(31, 41, 55, 0.9);
+  --bg-sidebar: #0f172a;
+  --border-color: rgba(255, 255, 255, 0.12);
+  --border-accent: rgba(99, 102, 241, 0.4);
   --text-primary: #f8fafc;
   --text-secondary: #94a3b8;
   --text-muted: #64748b;
@@ -12,8 +33,11 @@
   --accent-emerald: #10b981;
   --accent-indigo: #6366f1;
   --accent-purple: #8b5cf6;
-  --font-sans: 'Inter', system-ui, -apple-system, sans-serif;
+  --input-bg: #1e293b;
+  --input-border: rgba(255, 255, 255, 0.15);
 }
+
+
 
 * {
   box-sizing: border-box;
@@ -276,3 +300,116 @@ body {
 .form-select:focus, .form-input:focus {
   border-color: var(--accent-blue);
 }
+
+/* Agent Markdown Report Body & Table Styling */
+.agent-markdown-body {
+  color: var(--text-primary);
+  font-size: 15px;
+  line-height: 1.7;
+}
+
+.agent-markdown-body h1 {
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--text-primary);
+  margin: 20px 0 12px 0;
+  letter-spacing: -0.02em;
+}
+
+.agent-markdown-body h2 {
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--text-primary);
+  margin: 22px 0 10px 0;
+  padding-bottom: 6px;
+  border-bottom: 1px solid var(--border-color);
+  letter-spacing: -0.01em;
+}
+
+.agent-markdown-body h3 {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin: 16px 0 8px 0;
+}
+
+.agent-markdown-body p {
+  margin: 10px 0;
+  color: var(--text-primary);
+}
+
+.agent-markdown-body ul, .agent-markdown-body ol {
+  padding-left: 24px;
+  margin: 12px 0;
+}
+
+.agent-markdown-body li {
+  margin-bottom: 6px;
+  color: var(--text-primary);
+}
+
+.agent-markdown-body strong {
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.agent-markdown-body table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  margin: 18px 0;
+  border-radius: 12px;
+  overflow: hidden;
+  border: 1px solid var(--border-color);
+  background: var(--bg-card);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.04);
+}
+
+.agent-markdown-body th {
+  background: var(--bg-card-hover);
+  padding: 12px 16px;
+  font-weight: 600;
+  font-size: 13.5px;
+  text-align: left;
+  color: var(--text-primary);
+  border-bottom: 2px solid var(--border-color);
+  letter-spacing: 0.02em;
+}
+
+.agent-markdown-body td {
+  padding: 11px 16px;
+  font-size: 14px;
+  color: var(--text-primary);
+  border-bottom: 1px solid var(--border-color);
+}
+
+.agent-markdown-body tr:last-child td {
+  border-bottom: none;
+}
+
+.agent-markdown-body tr:nth-child(even) td {
+  background: rgba(0, 0, 0, 0.025);
+}
+
+[data-theme="dark"] .agent-markdown-body tr:nth-child(even) td {
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.agent-markdown-body code {
+  background: var(--bg-card-hover);
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-family: monospace;
+  font-size: 13px;
+  color: var(--accent-purple);
+}
+
+.agent-markdown-body pre {
+  background: var(--bg-card-hover);
+  padding: 14px;
+  border-radius: 10px;
+  border: 1px solid var(--border-color);
+  overflow-x: auto;
+  margin: 14px 0;
+}
+

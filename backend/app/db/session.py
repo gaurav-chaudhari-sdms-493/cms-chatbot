@@ -83,3 +83,4 @@ def check_sync_db_connection() -> dict:
         "installed_extensions": extensions,
         "metadata_database": metadata_status
     }
+# Session engine configuration

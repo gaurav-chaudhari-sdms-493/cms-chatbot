@@ -1,5 +1,5 @@
 import React from 'react';
-import { PanelLeft } from 'lucide-react';
+import { PanelLeft, Sun, Moon, Settings } from 'lucide-react';
 
 interface HeaderProps {
   health: { status: string; database?: { department_master_rows?: number } } | null;
@@ -7,23 +7,45 @@ interface HeaderProps {
   onTabChange: (tab: 'query' | 'developer') => void;
   onToggleSidebar?: () => void;
   isSidebarOpen?: boolean;
+  theme?: 'dark' | 'light';
+  onThemeChange?: (theme: 'dark' | 'light') => void;
+  onOpenSettings?: () => void;
 }
 
-export const Header: React.FC<HeaderProps> = ({ health, activeTab, onTabChange, onToggleSidebar, isSidebarOpen }) => {
+export const Header: React.FC<HeaderProps> = ({
+  health,
+  activeTab,
+  onTabChange,
+  onToggleSidebar,
+  isSidebarOpen,
+  theme = 'light',
+  onThemeChange,
+  onOpenSettings
+}) => {
   const isHealthy = health?.status === 'healthy';
 
   return (
-    <header className="header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '16px' }}>
+    <header className="header" style={{
+      display: 'flex',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+
+      flexWrap: 'wrap',
+      gap: '16px',
+      padding: '16px 24px',
+      background: 'var(--bg-card)',
+      borderBottom: '1px solid var(--border-color)'
+    }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
         {onToggleSidebar && (
           <button
             onClick={onToggleSidebar}
             style={{
-              background: 'rgba(255, 255, 255, 0.05)',
-              border: '1px solid rgba(255, 255, 255, 0.1)',
+              background: 'var(--bg-card-hover)',
+              border: '1px solid var(--border-color)',
               borderRadius: '8px',
               padding: '8px 10px',
-              color: '#94a3b8',
+              color: 'var(--text-secondary)',
               cursor: 'pointer',
               display: 'flex',
               alignItems: 'center',
@@ -32,21 +54,22 @@ export const Header: React.FC<HeaderProps> = ({ health, activeTab, onTabChange, 
             }}
             title={isSidebarOpen ? 'Collapse Chat History Sidebar' : 'Open Chat History Sidebar'}
           >
-            <PanelLeft size={20} color={isSidebarOpen ? '#38bdf8' : '#94a3b8'} />
+            <PanelLeft size={20} color={isSidebarOpen ? 'var(--accent-blue)' : 'var(--text-secondary)'} />
           </button>
         )}
         <div>
-          <h1 className="brand-title">PMC Officer Query System</h1>
-          <p className="brand-subtitle">
+          <h1 className="brand-title" style={{ fontSize: '20px', fontWeight: 700, color: 'var(--text-primary)', margin: 0 }}>
+            PMC Officer Query System — Stark AI
+          </h1>
+          <p className="brand-subtitle" style={{ fontSize: '13px', color: 'var(--text-secondary)', margin: 0 }}>
             Controlled Natural Language Analytics Interface — Pune Municipal Corporation
           </p>
         </div>
       </div>
 
-
-      <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
         {/* Navigation Tabs */}
-        <div style={{ display: 'flex', background: 'rgba(15, 23, 42, 0.6)', padding: '4px', borderRadius: '12px', border: '1px solid rgba(255, 255, 255, 0.1)' }}>
+        <div style={{ display: 'flex', background: 'var(--bg-card-hover)', padding: '4px', borderRadius: '12px', border: '1px solid var(--border-color)' }}>
           <button
             onClick={() => onTabChange('query')}
             style={{
@@ -58,8 +81,7 @@ export const Header: React.FC<HeaderProps> = ({ health, activeTab, onTabChange, 
               fontSize: '13px',
               transition: 'all 0.2s ease',
               background: activeTab === 'query' ? 'linear-gradient(135deg, #3b82f6, #2563eb)' : 'transparent',
-              color: activeTab === 'query' ? '#ffffff' : '#94a3b8',
-              boxShadow: activeTab === 'query' ? '0 4px 12px rgba(37, 99, 235, 0.4)' : 'none'
+              color: activeTab === 'query' ? '#ffffff' : 'var(--text-secondary)'
             }}
           >
             🔍 Officer Query
@@ -76,19 +98,70 @@ export const Header: React.FC<HeaderProps> = ({ health, activeTab, onTabChange, 
               fontSize: '13px',
               transition: 'all 0.2s ease',
               background: activeTab === 'developer' ? 'linear-gradient(135deg, #8b5cf6, #7c3aed)' : 'transparent',
-              color: activeTab === 'developer' ? '#ffffff' : '#94a3b8',
-              boxShadow: activeTab === 'developer' ? '0 4px 12px rgba(124, 58, 237, 0.4)' : 'none'
+              color: activeTab === 'developer' ? '#ffffff' : 'var(--text-secondary)'
             }}
           >
             🛠️ Developer Studio
           </button>
         </div>
 
-        <div className="status-badge" style={{ borderColor: isHealthy ? 'rgba(16, 185, 129, 0.3)' : 'rgba(239, 68, 68, 0.3)', color: isHealthy ? '#34d399' : '#f87171' }}>
-          <span className="status-dot" style={{ backgroundColor: isHealthy ? '#10b981' : '#ef4444', boxShadow: isHealthy ? '0 0 8px #10b981' : '0 0 8px #ef4444' }}></span>
-          {isHealthy ? `Backend Healthy (${health?.database?.department_master_rows || 166} Depts)` : 'Connecting to Backend...'}
-        </div>
+        {/* Theme Switcher Button */}
+        {onThemeChange && (
+          <button
+            onClick={() => onThemeChange(theme === 'light' ? 'dark' : 'light')}
+            style={{
+              background: 'var(--bg-card-hover)',
+              border: '1px solid var(--border-color)',
+              borderRadius: '10px',
+              padding: '8px 12px',
+              color: 'var(--text-primary)',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
+              fontWeight: 600,
+              fontSize: '13px',
+              transition: 'all 0.2s ease'
+            }}
+            title={`Switch to ${theme === 'light' ? 'Dark' : 'Light'} Mode`}
+          >
+            {theme === 'light' ? (
+              <>
+                <Moon size={16} color="#475569" />
+                <span>Dark Mode</span>
+              </>
+            ) : (
+              <>
+                <Sun size={16} color="#f59e0b" />
+                <span>Light Mode</span>
+              </>
+            )}
+          </button>
+        )}
+
+        {/* Settings Button */}
+        {onOpenSettings && (
+          <button
+            onClick={onOpenSettings}
+            style={{
+              background: 'var(--bg-card-hover)',
+              border: '1px solid var(--border-color)',
+              borderRadius: '10px',
+              padding: '8px 10px',
+              color: 'var(--text-secondary)',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              transition: 'all 0.2s ease'
+            }}
+            title="Open System Settings"
+          >
+            <Settings size={18} />
+          </button>
+        )}
       </div>
     </header>
   );
 };
+

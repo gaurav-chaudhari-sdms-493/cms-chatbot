@@ -1,0 +1,242 @@
+.venv/bin/python -c "
+from sqlalchemy import text
+from app.db.session import sync_pmc_engine
+
+with sync_pmc_engine.connect() as conn:
+    # 1. Find Health Department IDs and Category IDs
+    depts = conn.execute(text(\"SELECT id, department_name, department_name_mar FROM department_master WHERE department_name ILIKE '%health%' OR department_name_mar ILIKE '%आरोग्य%';\")).fetchall()
+    print('HEALTH DEPTS:', depts)
+    
+    dept_ids = [d[0] for d in depts]
+    
+    cats = conn.execute(text(\"SELECT id, category_name, category_name_mar FROM category_master WHERE department_id IN :ids OR category_name ILIKE '%health%' OR category_name_mar ILIKE '%आरोग्य%';\"), {'ids': tuple(dept_ids) if dept_ids else (0,)}).fetchall()
+    print('HEALTH CATS (Count):', len(cats))
+    
+    # 2. Find Resolved Status IDs
+    statuses = conn.execute(text(\"SELECT id, status_name, status_name_mar, status_group FROM status_master WHERE status_name ILIKE '%resolved%' OR status_name ILIKE '%closed%' OR status_group = 'CLOSED';\")).fetchall()
+    print('RESOLVED STATUSES:', statuses)
+    
+    status_ids = [s[0] for s in statuses]
+    
+    # 3. Check complaint count in last 30 days
+    sql_count_30 = text(\"\"\"
+        SELECT COUNT(*) 
+        FROM complaint c
+        WHERE (c.department_id IN :dept_ids OR c.category_id IN (SELECT id FROM category_master WHERE department_id IN :dept_ids))
+          AND c.status_id IN :status_ids
+          AND (c.created_at >= CURRENT_DATE - INTERVAL '30 days' OR c.created_at >= '2026-07-26');
+    \"\"\")
+    
+    count_30 = conn.execute(sql_count_30, {'dept_ids': tuple(dept_ids) if dept_ids else (0,), 'status_ids': tuple(status_ids)}).scalar()
+    print('RESOLVED HEALTH COMPLAINTS IN LAST 30 DAYS:', count_30)
+    
+    # Total resolved overall
+    sql_total = text(\"\"\"
+        SELECT COUNT(*) 
+        FROM complaint c
+        WHERE (c.department_id IN :dept_ids OR c.category_id IN (SELECT id FROM category_master WHERE department_id IN :dept_ids))
+          AND c.status_id IN :status_ids;
+    \"\"\")
+    total_resolved = conn.execute(sql_total, {'dept_ids': tuple(dept_ids) if dept_ids else (0,), 'status_ids': tuple(status_ids)}).scalar()
+    print('TOTAL RESOLVED HEALTH COMPLAINTS (ALL TIME):', total_resolved)
+
+    # Check max date in dataset
+    max_date = conn.execute(text(\"SELECT MAX(created_at) FROM complaint;\")).scalar()
+    min_date = conn.execute(text(\"SELECT MIN(created_at) FROM complaint;\")).scalar()
+    print(f'DATASET DATE RANGE: {min_date} to {max_date}')
+"
+
+
+
+
+
+
+
+
+
+
+
+
+.venv/bin/python -c "
+from sqlalchemy import text
+from app.db.session import sync_pmc_engine
+
+with sync_pmc_engine.connect() as conn:
+    # 1. Health Dept IDs
+    depts = conn.execute(text(\"SELECT id, department_name, department_name_mar FROM department_master WHERE department_name ILIKE '%health%' OR department_name_mar ILIKE '%आरोग्य%';\")).fetchall()
+    print('HEALTH DEPTS:', depts)
+    dept_ids = tuple([d[0] for d in depts])
+    
+    # 2. Statuses
+    resolved_statuses = conn.execute(text(\"SELECT id, status_name, status_name_mar, status_group FROM status_master WHERE status_name ILIKE '%resolved%' OR status_name ILIKE '%closed%' OR status_group = 'CLOSED';\")).fetchall()
+    print('RESOLVED STATUSES:', resolved_statuses)
+    status_ids = tuple([s[0] for s in resolved_statuses])
+    
+    # 3. Dataset date range
+    min_date, max_date = conn.execute(text(\"SELECT MIN(created_at), MAX(created_at) FROM complaint;\")).fetchone()
+    print(f'DATASET DATE RANGE: {min_date} to {max_date}')
+    
+    # 4. Count resolved complaints for Health Dept (All Time vs Last 30 Days relative to max_date or CURRENT_DATE)
+    count_all = conn.execute(text(\"\"\"
+        SELECT COUNT(*) 
+        FROM complaint c
+        WHERE c.department_id IN :dept_ids
+          AND c.status_id IN :status_ids;
+    \"\"\"), {'dept_ids': dept_ids, 'status_ids': status_ids}).scalar()
+    print('TOTAL RESOLVED HEALTH COMPLAINTS (ALL TIME):', count_all)
+
+    # Relative to MAX(created_at) in DB
+    count_30_rel = conn.execute(text(\"\"\"
+        SELECT COUNT(*) 
+        FROM complaint c
+        WHERE c.department_id IN :dept_ids
+          AND c.status_id IN :status_ids
+          AND c.created_at >= (SELECT MAX(created_at) FROM complaint) - INTERVAL '30 days';
+    \"\"\"), {'dept_ids': dept_ids, 'status_ids': status_ids}).scalar()
+    print('RESOLVED HEALTH COMPLAINTS IN LAST 30 DAYS (RELATIVE TO MAX DB DATE):', count_30_rel)
+
+    # Relative to CURRENT_DATE
+    count_30_curr = conn.execute(text(\"\"\"
+        SELECT COUNT(*) 
+        FROM complaint c
+        WHERE c.department_id IN :dept_ids
+          AND c.status_id IN :status_ids
+          AND c.created_at >= CURRENT_DATE - INTERVAL '30 days';
+    \"\"\"), {'dept_ids': dept_ids, 'status_ids': status_ids}).scalar()
+    print('RESOLVED HEALTH COMPLAINTS IN LAST 30 DAYS (RELATIVE TO TODAY):', count_30_curr)
+    
+    # Breakdown by Status
+    breakdown = conn.execute(text(\"\"\"
+        SELECT sm.status_name, sm.status_name_mar, COUNT(c.id)
+        FROM complaint c
+        JOIN status_master sm ON c.status_id = sm.id
+        WHERE c.department_id IN :dept_ids
+        GROUP BY sm.status_name, sm.status_name_mar;
+    \"\"\"), {'dept_ids': dept_ids}).fetchall()
+    print('\nHEALTH COMPLAINTS STATUS BREAKDOWN (ALL TIME):')
+    for b in breakdown:
+        print(f'  {b[0]} ({b[1]}): {b[2]}')
+"
+
+
+
+
+
+
+
+
+
+
+
+
+.venv/bin/python -c "
+from sqlalchemy import text
+from app.db.session import sync_pmc_engine
+
+with sync_pmc_engine.connect() as conn:
+    # Check created_at and updated_at date distribution for Health Dept (id=15, 100)
+    health_dates = conn.execute(text(\"\"\"
+        SELECT MIN(created_at), MAX(created_at), MIN(updated_at), MAX(updated_at)
+        FROM complaint
+        WHERE department_id IN (15, 100);
+    \"\"\")).fetchone()
+    print('HEALTH DEPT COMPLAINT DATES:', health_dates)
+
+    # Health resolved in 2026 / 2025 / recent months
+    recent_counts = conn.execute(text(\"\"\"
+        SELECT 
+            TO_CHAR(created_at, 'YYYY-MM') AS month,
+            COUNT(*) FILTER (WHERE status_id IN (9, 10)) AS resolved_count,
+            COUNT(*) AS total_count
+        FROM complaint
+        WHERE department_id IN (15, 100)
+        GROUP BY TO_CHAR(created_at, 'YYYY-MM')
+        ORDER BY month DESC
+        LIMIT 12;
+    \"\"\")).fetchall()
+    print('\nRECENT MONTHLY BREAKDOWN FOR HEALTH DEPT:')
+    for r in recent_counts:
+        print(f'  Month {r[0]}: {r[1]} Resolved / {r[2]} Total')
+"
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+.venv/bin/python -c "
+from sqlalchemy import text
+from app.db.session import sync_pmc_engine
+
+with sync_pmc_engine.connect() as conn:
+    # 1. Complaints updated in last 30 days (status_id IN (9, 10))
+    resolved_updated_30 = conn.execute(text(\"\"\"
+        SELECT COUNT(*)
+        FROM complaint
+        WHERE department_id IN (15, 100)
+          AND status_id IN (9, 10)
+          AND updated_at >= '2026-07-27';
+    \"\"\")).scalar()
+    print('RESOLVED HEALTH COMPLAINTS UPDATED SINCE 2026-07-27 (Last 30 Days):', resolved_updated_30)
+
+    # 2. Complaints created in last 30 days (since 2026-07-27) that are resolved/closed
+    resolved_created_30 = conn.execute(text(\"\"\"
+        SELECT COUNT(*)
+        FROM complaint
+        WHERE department_id IN (15, 100)
+          AND status_id IN (9, 10)
+          AND created_at >= '2026-07-27';
+    \"\"\")).scalar()
+    print('RESOLVED HEALTH COMPLAINTS CREATED SINCE 2026-07-27 (Last 30 Days):', resolved_created_30)
+
+    # Breakdown by resolution type (Resolved vs Closed - Not Valid) since 2026-07-27
+    status_breakdown_30 = conn.execute(text(\"\"\"
+        SELECT sm.status_name, sm.status_name_mar, COUNT(c.id)
+        FROM complaint c
+        JOIN status_master sm ON c.status_id = sm.id
+        WHERE c.department_id IN (15, 100)
+          AND c.updated_at >= '2026-07-27'
+        GROUP BY sm.status_name, sm.status_name_mar;
+    \"\"\")).fetchall()
+    print('\nALL HEALTH COMPLAINTS STATUSES UPDATED IN LAST 30 DAYS (SINCE 2026-07-27):')
+    for sb in status_breakdown_30:
+        print(f'  {sb[0]} ({sb[1]}): {sb[2]}')
+
+    # Total complaints registered in last 30 days
+    total_30 = conn.execute(text(\"\"\"
+        SELECT COUNT(*)
+        FROM complaint
+        WHERE department_id IN (15, 100)
+          AND created_at >= '2026-07-27';
+    \"\"\")).scalar()
+    print('\nTOTAL NEW HEALTH COMPLAINTS CREATED IN LAST 30 DAYS:', total_30)
+"
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

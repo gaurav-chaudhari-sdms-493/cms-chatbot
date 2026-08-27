@@ -1,0 +1,182 @@
+[
+  {
+    "updatedAt": "2026-08-26T19:57:40.000Z",
+    "createdAt": "2026-08-26T19:26:31.910Z",
+    "id": "GZJI98OiU3CSvqhD",
+    "name": "PMC Grievance AI Agent",
+    "description": null,
+    "active": true,
+    "isArchived": false,
+    "nodes": [
+      {
+        "parameters": {
+          "options": {}
+        },
+        "type": "@n8n/n8n-nodes-langchain.chatTrigger",
+        "typeVersion": 1.4,
+        "position": [
+          0,
+          0
+        ],
+        "id": "ccab58c7-82cb-47b5-8fe9-4dc0486f2f00",
+        "name": "When chat message received",
+        "webhookId": "pmc-chat-agent-webhook"
+      },
+      {
+        "parameters": {
+          "promptType": "define",
+          "text": "={{ $json.chatInput }}",
+          "options": {
+            "systemMessage": "You are the PMC Grievance Intelligence AI Assistant for Pune Municipal Corporation.\nUse your connected PostgreSQL tool to execute read-only SELECT queries to answer the officer's question.\n\n=== DATABASE SCHEMA REFERENCE ===\n\n1. MAIN COMPLAINT TABLE: `complaint`\n   - Columns: id, ticket_no, category_id, sub_category_id, department_id, ward_id, prabhag_id, status_id, registered_by_id, description, location, created_at, updated_at\n\n2. CORE MASTER TABLES:\n   - `category_master`: (id, category_name, category_name_mar, default_department_id, default_sla_hours)\n   - `sub_category_master`: (id, sub_category_name, sub_category_name_mar, category_id)\n   - `department_master`: (id, department_name, department_name_mar)\n   - `status_master`: (id, status_name, status_name_mar, status_group ['OPEN', 'IN_PROGRESS', 'PENDING', 'CLOSED'])\n   - `ward_master`: (id, ward_name, ward_name_mar)\n   - `prabhag_master`: (id, prabhag_name, prabhag_name_mar, ward_id)\n   - `zone_master`: (id, zone_name, zone_name_mar)\n   - `user_master`: (id, full_name, mobile_no, email, user_type)\n   - `user_role_mapping`: (user_id, role_id, department_id, ward_id)\n   - `role_master`: (id, role_name, role_name_mar)\n   - `designation_master`: (id, designation_name, designation_name_mar)\n   - `ward_performance`: (id, ward_id, year, month, total_complaints, resolved_count, pending_count, rank)\n   - `holiday_master`: (id, holiday_name, holiday_date)\n   - `swachhata_category`: (id, name, name_mar)\n   - `permission`: (id, permission_name)\n\n=== QUERYING & ANALYSIS RULES ===\n- For resolved complaints: join status_master sm ON c.status_id = sm.id (WHERE sm.status_group = 'CLOSED' OR sm.status_name IN ('Resolved', 'Closed - Not Valid'))\n- For pending/open complaints: WHERE sm.status_group != 'CLOSED'\n- For timeframes (e.g. 'resolved in last 30 days'): check `updated_at >= CURRENT_DATE - INTERVAL '30 days'`\n- For ward queries: search ward_master using `ILIKE '%ward_name%'` (e.g. `w.ward_name ILIKE '%Kothrud%'`)\n- Always limit SQL query outputs to 50 rows.\n- Format responses as structured, executive-ready Markdown report cards.\n"
+          }
+        },
+        "type": "@n8n/n8n-nodes-langchain.agent",
+        "typeVersion": 1.7,
+        "position": [
+          224,
+          0
+        ],
+        "id": "agent-node-001",
+        "name": "PMC Grievance AI Agent"
+      },
+      {
+        "parameters": {
+          "model": "meta-llama/llama-3.3-70b-instruct",
+          "options": {}
+        },
+        "type": "@n8n/n8n-nodes-langchain.lmChatOpenRouter",
+        "typeVersion": 1,
+        "position": [
+          16,
+          256
+        ],
+        "id": "47be74fa-e529-447c-8916-2c0b79f401f1",
+        "name": "OpenRouter Chat Model",
+        "credentials": {
+          "openRouterApi": {
+            "id": "s0xublZnanPe75YF",
+            "name": "OpenRouter account"
+          }
+        }
+      },
+      {
+        "parameters": {
+          "operation": "executeQuery",
+          "query": "={{ $fromAI('query', 'The SQL SELECT query to execute against PMC database') }}\n",
+          "options": {}
+        },
+        "type": "n8n-nodes-base.postgresTool",
+        "typeVersion": 2.7,
+        "position": [
+          384,
+          208
+        ],
+        "id": "05d9bfb4-d2e4-4c36-a481-fa4f4691319a",
+        "name": "Execute a SQL query in Postgres",
+        "credentials": {
+          "postgres": {
+            "id": "SeAEsGGEcQ5n61TW",
+            "name": "Postgres account"
+          }
+        }
+      },
+      {
+        "parameters": {},
+        "type": "@n8n/n8n-nodes-langchain.memoryBufferWindow",
+        "typeVersion": 1.4,
+        "position": [
+          240,
+          208
+        ],
+        "id": "08d8fbbf-1888-4b06-9bec-f08537c5902f",
+        "name": "Simple Memory"
+      }
+    ],
+    "connections": {
+      "When chat message received": {
+        "main": [
+          [
+            {
+              "node": "PMC Grievance AI Agent",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "OpenRouter Chat Model": {
+        "ai_languageModel": [
+          [
+            {
+              "node": "PMC Grievance AI Agent",
+              "type": "ai_languageModel",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Execute a SQL query in Postgres": {
+        "ai_tool": [
+          [
+            {
+              "node": "PMC Grievance AI Agent",
+              "type": "ai_tool",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Simple Memory": {
+        "ai_memory": [
+          [
+            {
+              "node": "PMC Grievance AI Agent",
+              "type": "ai_memory",
+              "index": 0
+            }
+          ]
+        ]
+      }
+    },
+    "settings": {
+      "executionOrder": "v1",
+      "binaryMode": "separate"
+    },
+    "staticData": null,
+    "meta": {
+      "templateCredsSetupCompleted": true
+    },
+    "nodeGroups": [],
+    "pinData": {},
+    "versionId": "37a37f20-04b0-4fad-bc56-16b1ed68dae3",
+    "activeVersionId": "37a37f20-04b0-4fad-bc56-16b1ed68dae3",
+    "versionCounter": 25,
+    "triggerCount": 1,
+    "sourceWorkflowId": null,
+    "tags": [],
+    "shared": [
+      {
+        "updatedAt": "2026-08-26T19:26:31.913Z",
+        "createdAt": "2026-08-26T19:26:31.913Z",
+        "role": "workflow:owner",
+        "workflowId": "GZJI98OiU3CSvqhD",
+        "projectId": "9MBjI53b9vUw3Uwb",
+        "project": {
+          "updatedAt": "2026-08-26T19:23:12.409Z",
+          "createdAt": "2026-08-26T19:22:34.511Z",
+          "id": "9MBjI53b9vUw3Uwb",
+          "name": "Gaurav Chaudhari <chaudharigaurav177@gmail.com>",
+          "type": "personal",
+          "icon": null,
+          "description": null,
+          "customTelemetryTags": [],
+          "creatorId": "b36f3045-4893-4257-ba36-b7d033a35c34"
+        }
+      }
+    ],
+    "versionMetadata": {
+      "name": "Version 37a37f20",
+      "description": ""
+    }
+  }
+]

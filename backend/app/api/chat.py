@@ -7,6 +7,7 @@ from fastapi import APIRouter, HTTPException, Depends
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 from sqlalchemy import text
+import requests
 from google import genai
 from dotenv import load_dotenv
 
@@ -165,16 +166,8 @@ def post_chat_message(session_id: str, payload: ChatMessageRequest, db: Session 
             prompt_context.append(f"SQL Used: {m.sql_used}")
 
     
-    prompt_context.append(f"\nOfficer (Current Question): {payload.content}\n\n"
-                          f"AUTONOMOUS QUERY GENERATION INSTRUCTIONS:\n"
-                          f"- Inspect the Live Database Schema and Live Sample Column Values provided above.\n"
-                          f"- For location/text matching, search using wildcard pattern `ILIKE '%term%'` across ward_name, prabhag_name, and address.\n"
-                          f"- For officer/staff queries, filter out citizen accounts (e.g. `user_type != 'CITIZEN'`).\n"
-                          f"- Return ONLY valid PostgreSQL SELECT SQL enclosed within ```sql ... ``` block.")
-
-
-
-
+    from app.api.llm_client import execute_fastmcp_agent_loop
+    
     start_time = time.time()
     sql_used = ""
     columns = []
@@ -184,30 +177,58 @@ def post_chat_message(session_id: str, payload: ChatMessageRequest, db: Session 
     last_error = ""
     is_quota_error = False
 
-    # Self-Correction ReAct Loop (Up to 3 retries)
-    for attempt in range(1, 4):
+    # 1. First try n8n AI Agent Webhook (Production & Test Endpoints)
+    n8n_urls = [
+        "http://localhost:5678/webhook/pmc-chat-agent-webhook",
+        "http://localhost:5678/webhook-test/pmc-chat-agent-webhook"
+    ]
+    
+    n8n_success = False
+    markdown_report = ""
+    sql_used = ""
+
+    for url in n8n_urls:
         try:
-            raw_text, _ = call_gemini_with_key_rotation("\n".join(prompt_context))
-            extracted_sql = extract_sql_from_response(raw_text)
-            if not extracted_sql:
-                raise ValueError("Could not find a valid SQL block in response.")
-            
-            sql_used = extracted_sql
-            columns, rows = execute_sql_query(sql_used)
-            execution_success = True
-            retry_count = attempt - 1
-            break
-        except Exception as err:
-            last_error = str(err)
-            if "429" in last_error or "RESOURCE_EXHAUSTED" in last_error:
-                is_quota_error = True
-            prompt_context.append(f"\nSQL execution attempt {attempt} failed: {last_error}. Please correct table/column names and regenerate ```sql ... ```.")
+            n8n_resp = requests.post(url, json={
+                "chatInput": payload.content,
+                "sessionId": session.id
+            }, timeout=45)
+            if n8n_resp.status_code == 200:
+                n8n_data = n8n_resp.json()
+                if isinstance(n8n_data, list) and len(n8n_data) > 0:
+                    n8n_data = n8n_data[0]
+                
+                markdown_report = n8n_data.get("output") or n8n_data.get("text") or n8n_data.get("markdown_report") or ""
+                sql_used = n8n_data.get("sql_used") or ""
+                if markdown_report.strip():
+                    n8n_success = True
+                    execution_success = True
+                    logger.info("Successfully received report card from n8n AI Agent Workflow.")
+                    break
+        except Exception as n8n_err:
+            logger.warning(f"n8n webhook attempt failed on '{url}': {n8n_err}")
 
-    execution_time_ms = round((time.time() - start_time) * 1000, 2)
+    # 2. Fallback to native FastMCP Agent loop if n8n is not active
+    if not n8n_success:
+        history_str = "\n".join(prompt_context[1:])
+        try:
+            sql_used, columns, rows, steps_taken = execute_fastmcp_agent_loop(
+                live_schema_context, 
+                payload.content, 
+                max_steps=5, 
+                history_context=history_str
+            )
+            if sql_used and len(rows) > 0:
+                execution_success = True
+                retry_count = steps_taken - 1
+        except Exception as e:
+            logger.error(f"FastMCP Agent Execution Error: {e}")
+            last_error = str(e)
 
-    # Synthesis Stage
-    if execution_success:
-        synthesis_prompt = f"""
+        execution_time_ms = round((time.time() - start_time) * 1000, 2)
+
+        if execution_success and not markdown_report:
+            synthesis_prompt = f"""
 You are the PMC Grievance Intelligence AI Assistant for Pune Municipal Corporation.
 Format a beautiful, highly polished, executive-ready Markdown report card to answer the officer's question based on the verified database output and conversation history.
 
@@ -223,32 +244,17 @@ Database Output (Columns: {columns}):
 CRITICAL EXECUTIVE FORMATTING RULES:
 1. Provide a clean Header (# Title) and Executive Summary section.
 2. ALL TABLES MUST BE STRICTLY FORMATTED AS GITHUB-FLAVORED MARKDOWN TABLES WITH PIPES '|' AND HEADER DIVIDER BARS '| --- | --- |'.
-   Example Table Syntax:
-   | Status Name | Complaint Count | Percentage (%) |
-   | :--- | :---: | :---: |
-   | ✅ Resolved | **21,736** | **78.9%** |
-   | ❌ Closed - Not Valid | **4,557** | **16.5%** |
-
 3. Format all numbers with commas (e.g. `21,736` instead of `21736`, `4,557` instead of `4557`).
 4. Highlight key totals, summary metrics, and insights in blockquotes `>` or bold badges (e.g. **`21,736`**).
-5. Include relevant emoji indicators (📊, 🟢, 🔴, 🏆, 🏛️, 🛣️, 🦟, 🚰, 💡) to make the report visually engaging and executive-ready.
+5. Include relevant emoji indicators to make the report visually engaging and executive-ready.
 """
+            try:
+                markdown_report, _ = call_gemini_with_key_rotation(synthesis_prompt)
+            except Exception:
+                markdown_report = f"# Analytics Results\n\n**Total Records:** {len(rows)}\n\n```json\n{rows[:20]}\n```"
+        elif not markdown_report:
+            markdown_report = f"# ⚠️ Query Resolution Notice\n\nThe AI Agent was unable to resolve the query.\n\n```text\n{last_error}\n```"
 
-        try:
-            markdown_report, _ = call_gemini_with_key_rotation(synthesis_prompt)
-        except Exception:
-            markdown_report = f"# Analytics Results\n\n**Total Records:** {len(rows)}\n\n```json\n{rows[:20]}\n```"
-    else:
-        if is_quota_error or "429" in last_error or "RESOURCE_EXHAUSTED" in last_error:
-            markdown_report = (
-                "# ⚠️ Gemini AI Rate Limit Reached (429 Quota Exceeded)\n\n"
-                "The Gemini API rate limit / free tier daily quota has been temporarily reached.\n\n"
-                "> 💡 **Recommended Quick Action:**\n"
-                "> Switch to **⚡ Structural Template Mode** at the top of the screen for **instant 10ms query execution** backed by PMC database indexes.\n\n"
-                "```text\nError Details: 429 RESOURCE_EXHAUSTED - API Rate Limit\n```"
-            )
-        else:
-            markdown_report = f"# ⚠️ Query Resolution Notice\n\nThe AI Agent was unable to resolve the query after 3 verification attempts.\n\n```text\n{last_error}\n```"
 
 
 
