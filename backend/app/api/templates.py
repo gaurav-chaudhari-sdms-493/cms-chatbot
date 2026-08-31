@@ -43,6 +43,7 @@ def _format_template_response(template: QueryTemplate) -> dict:
     }
 
 
+@router.get("/templates", response_model=List[QueryTemplateDetailResponse])
 @router.get("/admin/templates", response_model=List[QueryTemplateDetailResponse])
 def list_templates(q: Optional[str] = Query(None, description="Search term for template ID, intent, or question")):
     """List all query templates in the metadata database."""
@@ -63,6 +64,7 @@ def list_templates(q: Optional[str] = Query(None, description="Search term for t
         session.close()
 
 
+@router.get("/templates/{template_id}", response_model=QueryTemplateDetailResponse)
 @router.get("/admin/templates/{template_id}", response_model=QueryTemplateDetailResponse)
 def get_template(template_id: str):
     """Fetch details of a single query template."""
@@ -76,6 +78,7 @@ def get_template(template_id: str):
         session.close()
 
 
+@router.post("/templates", response_model=QueryTemplateDetailResponse, status_code=201)
 @router.post("/admin/templates", response_model=QueryTemplateDetailResponse, status_code=201)
 def create_template(payload: QueryTemplateCreate):
     """Create a new structural query template and generate its vector embedding."""
@@ -135,6 +138,7 @@ def create_template(payload: QueryTemplateCreate):
         session.close()
 
 
+@router.put("/templates/{template_id}", response_model=QueryTemplateDetailResponse)
 @router.put("/admin/templates/{template_id}", response_model=QueryTemplateDetailResponse)
 def update_template(template_id: str, payload: QueryTemplateUpdate):
     """Update an existing structural query template and re-compute its embedding if modified."""

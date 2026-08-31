@@ -71,25 +71,25 @@ export const DynamicPlaceholderForm: React.FC<DynamicPlaceholderFormProps> = ({
 
   return (
     <div className="glass-panel" style={{ marginTop: '24px' }}>
-      <h3 style={{ fontSize: '18px', fontWeight: 600, color: '#f8fafc', marginBottom: '8px' }}>
+      <h3 style={{ fontSize: '18px', fontWeight: 600, color: 'var(--text-primary)', marginBottom: '8px' }}>
         Template Selection Preview & Parameter Resolution
       </h3>
-      <p style={{ fontSize: '13px', color: '#94a3b8', marginBottom: '20px' }}>
-        Intent: <strong style={{ color: '#60a5fa' }}>{suggestion.intent}</strong> — Selected Pattern: "{suggestion.question_template}"
+      <p style={{ fontSize: '13px', color: 'var(--text-secondary)', marginBottom: '20px' }}>
+        Intent: <strong style={{ color: 'var(--accent-blue)' }}>{suggestion.intent}</strong> — Selected Pattern: "{suggestion.question_template}"
       </p>
 
       <form onSubmit={handleSubmit}>
         {/* Pre-filled detected values display */}
         {Object.keys(suggestion.detected_values).length > 0 && (
           <div style={{ background: 'rgba(16, 185, 129, 0.1)', border: '1px solid rgba(16, 185, 129, 0.3)', borderRadius: '10px', padding: '14px', marginBottom: '20px' }}>
-            <span style={{ fontSize: '12px', fontWeight: 600, color: '#34d399', textTransform: 'uppercase' }}>
+            <span style={{ fontSize: '12px', fontWeight: 600, color: 'var(--accent-emerald)', textTransform: 'uppercase' }}>
               ✓ Auto-Resolved Parameters
             </span>
             <div style={{ marginTop: '8px', display: 'flex', gap: '16px', flexWrap: 'wrap' }}>
               {Object.keys(suggestion.detected_values).map((key) => {
                 const val = suggestion.detected_values[key];
                 return (
-                  <div key={key} style={{ fontSize: '14px', color: '#f8fafc' }}>
+                  <div key={key} style={{ fontSize: '14px', color: 'var(--text-primary)' }}>
                     <strong>{key}:</strong> {val.label} (ID: {val.id})
                   </div>
                 );

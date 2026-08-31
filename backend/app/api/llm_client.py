@@ -3,9 +3,11 @@ import time
 import logging
 import requests
 from typing import List, Optional, Dict, Any, Union
-from google import genai
+from pathlib import Path
 from dotenv import load_dotenv
 
+env_path = Path(__file__).resolve().parent.parent.parent / ".env"
+load_dotenv(dotenv_path=env_path)
 load_dotenv()
 
 logger = logging.getLogger("pmc_chatbot.llm")
@@ -62,12 +64,12 @@ MCP_TOOLS_SCHEMA = [
 def call_openrouter_api(contents: Union[str, List[Dict[str, Any]]], models: Optional[List[str]] = None, use_tools: bool = False) -> Optional[Dict[str, Any]]:
     """Calls OpenRouter unified AI endpoint with enterprise models and optional native FastMCP tool schemas."""
     if not OPENROUTER_API_KEY:
-        return None
+        raise ValueError("OPENROUTER_API_KEY is not configured in .env file.")
 
     model_candidates = models or [
+        "google/gemini-2.5-flash",
         "meta-llama/llama-3.3-70b-instruct",
         "qwen/qwen-2.5-coder-32b-instruct",
-        "deepseek/deepseek-r1-distill-llama-70b",
         "meta-llama/llama-3.1-8b-instruct"
     ]
 
@@ -90,7 +92,7 @@ def call_openrouter_api(contents: Union[str, List[Dict[str, Any]]], models: Opti
             if use_tools:
                 payload["tools"] = MCP_TOOLS_SCHEMA
 
-            resp = requests.post("https://openrouter.ai/api/v1/chat/completions", headers=headers, json=payload, timeout=15)
+            resp = requests.post("https://openrouter.ai/api/v1/chat/completions", headers=headers, json=payload, timeout=20)
 
             if resp.status_code == 200:
                 data = resp.json()
@@ -111,59 +113,17 @@ def call_openrouter_api(contents: Union[str, List[Dict[str, Any]]], models: Opti
 
     return None
 
-def get_api_keys() -> List[str]:
-    keys = []
-    k1 = os.getenv("GEMINI_API_KEY")
-    k2 = os.getenv("GEMINI_API_KEY_2")
-    k3 = os.getenv("GEMINI_API_KEY_3")
-    if k1: keys.append(k1.strip())
-    if k2: keys.append(k2.strip())
-    if k3: keys.append(k3.strip())
-    return keys
-
 def call_gemini_with_key_rotation(contents: str, models: Optional[List[str]] = None) -> tuple[str, str]:
     """
-    Calls OpenRouter API first (if key configured). If OpenRouter fails, falls back to direct Gemini key rotation.
-    Returns (response_text, provider_info)
+    Standard OpenRouter LLM interface. Calls OpenRouter API and returns (response_text, provider_info).
     """
-    if OPENROUTER_API_KEY:
-        openrouter_msg = call_openrouter_api(contents, models)
-        if openrouter_msg and isinstance(openrouter_msg, dict):
-            content = openrouter_msg.get("content") or ""
-            if content.strip():
-                return content, "OpenRouter Enterprise API"
-
-
-    keys = get_api_keys()
-    if not keys:
-        raise ValueError("No OPENROUTER_API_KEY or GEMINI_API_KEY configured in environment.")
-
-    model_candidates = models or ["gemini-2.5-flash", "gemini-1.5-flash"]
-
-    last_err = ""
-
-    for key_idx, key in enumerate(keys):
-        client = genai.Client(api_key=key)
-        for model_name in model_candidates:
-            try:
-                response = client.models.generate_content(
-                    model=model_name,
-                    contents=contents
-                )
-                if response and response.text:
-                    logger.info(f"Gemini API success using Key #{key_idx + 1} and model '{model_name}'.")
-                    return response.text, f"Key-{key_idx + 1}"
-            except Exception as err:
-                last_err = str(err)
-                if "429" in last_err or "RESOURCE_EXHAUSTED" in last_err:
-                    logger.warning(f"Key #{key_idx + 1} hit 429 rate limit on model '{model_name}'. Rotating key...")
-                    time.sleep(1.0)
-                    break
-                else:
-                    logger.warning(f"Key #{key_idx + 1} failed on model '{model_name}': {last_err}")
-                    continue
-
-    raise RuntimeError(f"All LLM providers and keys failed. Last error: {last_err}")
+    msg = call_openrouter_api(contents, models)
+    if msg and isinstance(msg, dict):
+        content = msg.get("content") or ""
+        if content.strip():
+            return content, "OpenRouter Enterprise API"
+    
+    raise RuntimeError("OpenRouter API request failed across all candidate models.")
 
 
 def execute_fastmcp_agent_loop(schema_context: str, question: str, max_steps: int = 5, history_context: str = "") -> tuple[str, list, list, int]:

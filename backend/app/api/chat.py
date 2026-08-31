@@ -2,7 +2,7 @@ import os
 import uuid
 import time
 import logging
-from typing import Optional, List
+from typing import Optional, List, Dict, Any
 from fastapi import APIRouter, HTTPException, Depends
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
@@ -38,6 +38,8 @@ class ChatMessageResponse(BaseModel):
     sender: str
     content: str
     sql_used: Optional[str] = None
+    template_id: Optional[str] = None
+    candidate_templates: Optional[List[Dict[str, Any]]] = None
     execution_time_ms: Optional[float] = None
     created_at: str
 
@@ -61,6 +63,7 @@ def get_chat_sessions(db: Session = Depends(get_metadata_db)):
                 sender=m.sender,
                 content=m.content,
                 sql_used=m.sql_used,
+                template_id=getattr(m, 'template_id', None),
                 execution_time_ms=m.execution_time_ms,
                 created_at=m.created_at.isoformat()
             )
@@ -169,47 +172,77 @@ def post_chat_message(session_id: str, payload: ChatMessageRequest, db: Session 
     from app.api.llm_client import execute_fastmcp_agent_loop
     
     start_time = time.time()
+    execution_time_ms = 0.0
     sql_used = ""
+    template_id = None
+    candidate_templates = None
     columns = []
     rows = []
     retry_count = 0
     execution_success = False
     last_error = ""
-    is_quota_error = False
-
-    # 1. First try n8n AI Agent Webhook (Production & Test Endpoints)
-    n8n_urls = [
-        "http://localhost:5678/webhook/pmc-chat-agent-webhook",
-        "http://localhost:5678/webhook-test/pmc-chat-agent-webhook"
-    ]
-    
-    n8n_success = False
     markdown_report = ""
-    sql_used = ""
 
-    for url in n8n_urls:
-        try:
-            n8n_resp = requests.post(url, json={
-                "chatInput": payload.content,
-                "sessionId": session.id
-            }, timeout=45)
-            if n8n_resp.status_code == 200:
-                n8n_data = n8n_resp.json()
-                if isinstance(n8n_data, list) and len(n8n_data) > 0:
-                    n8n_data = n8n_data[0]
-                
-                markdown_report = n8n_data.get("output") or n8n_data.get("text") or n8n_data.get("markdown_report") or ""
-                sql_used = n8n_data.get("sql_used") or ""
-                if markdown_report.strip():
-                    n8n_success = True
-                    execution_success = True
-                    logger.info("Successfully received report card from n8n AI Agent Workflow.")
-                    break
-        except Exception as n8n_err:
-            logger.warning(f"n8n webhook attempt failed on '{url}': {n8n_err}")
+    # 1. Try Scope-based Template Engine (Categories A-P & Out-of-Scope Detection)
+    from app.execution.scope_engine import ScopeAnswerEngine
+    from app.db.session import sync_pmc_engine
+    from sqlalchemy.orm import sessionmaker
 
-    # 2. Fallback to native FastMCP Agent loop if n8n is not active
-    if not n8n_success:
+    PMC_SessionMaker = sessionmaker(bind=sync_pmc_engine)
+    pmc_session = PMC_SessionMaker()
+
+    try:
+        history_dicts = [{"sender": m.sender, "content": m.content} for m in history_msgs]
+        scope_res = ScopeAnswerEngine.answer_scope_query(
+            query_text=payload.content,
+            metadata_session=db,
+            pmc_session=pmc_session,
+            session_history=history_dicts
+        )
+        if scope_res:
+            markdown_report = scope_res["content"]
+            sql_used = scope_res.get("sql_used") or ""
+            template_id = scope_res.get("template_id") or None
+            candidate_templates = scope_res.get("candidate_templates") or None
+            execution_success = True
+            logger.info(f"Successfully answered query via Scope Template Engine (Template: {template_id})")
+    except Exception as scope_err:
+        logger.warning(f"Scope Answer Engine attempt encountered error: {scope_err}")
+    finally:
+        pmc_session.close()
+
+    # 2. Try n8n AI Agent Webhook if not answered by Scope Engine
+    if not markdown_report:
+        n8n_urls = [
+            "http://localhost:5678/webhook/pmc-chat-agent-webhook",
+            "http://localhost:5678/webhook-test/pmc-chat-agent-webhook"
+        ]
+        
+        n8n_success = False
+
+        for url in n8n_urls:
+            try:
+                n8n_resp = requests.post(url, json={
+                    "chatInput": payload.content,
+                    "sessionId": session.id
+                }, timeout=45)
+                if n8n_resp.status_code == 200:
+                    n8n_data = n8n_resp.json()
+                    if isinstance(n8n_data, list) and len(n8n_data) > 0:
+                        n8n_data = n8n_data[0]
+                    
+                    markdown_report = n8n_data.get("output") or n8n_data.get("text") or n8n_data.get("markdown_report") or ""
+                    sql_used = n8n_data.get("sql_used") or ""
+                    if markdown_report.strip():
+                        n8n_success = True
+                        execution_success = True
+                        logger.info("Successfully received report card from n8n AI Agent Workflow.")
+                        break
+            except Exception as n8n_err:
+                logger.warning(f"n8n webhook attempt failed on '{url}': {n8n_err}")
+
+    # 3. Fallback to native FastMCP Agent loop if n8n and Scope Engine are not active
+    if not markdown_report:
         history_str = "\n".join(prompt_context[1:])
         try:
             sql_used, columns, rows, steps_taken = execute_fastmcp_agent_loop(
@@ -259,11 +292,13 @@ CRITICAL EXECUTIVE FORMATTING RULES:
 
 
     # Save Agent message to DB
+    execution_time_ms = round((time.time() - start_time) * 1000, 2)
     agent_msg = ChatMessage(
         session_id=session.id,
         sender="agent",
         content=markdown_report,
         sql_used=sql_used,
+        template_id=template_id,
         execution_time_ms=execution_time_ms
     )
     db.add(agent_msg)
@@ -283,10 +318,14 @@ CRITICAL EXECUTIVE FORMATTING RULES:
             sender=agent_msg.sender,
             content=agent_msg.content,
             sql_used=agent_msg.sql_used,
+            template_id=agent_msg.template_id,
+            candidate_templates=candidate_templates,
             execution_time_ms=agent_msg.execution_time_ms,
             created_at=agent_msg.created_at.isoformat()
         ),
         "sql_used": sql_used,
+        "template_id": template_id,
+        "candidate_templates": candidate_templates,
         "execution_time_ms": execution_time_ms,
         "retry_count": retry_count,
         "status": "SUCCESS" if execution_success else "FAILED"

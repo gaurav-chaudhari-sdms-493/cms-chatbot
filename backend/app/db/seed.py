@@ -8,8 +8,18 @@ load_dotenv()
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../..")))
 
+import json
 from app.db.models import Base, QueryTemplate, QueryTemplatePlaceholder
-from app.templates.catalog import CANONICAL_TEMPLATES
+
+FIXTURE_PATH = os.path.abspath(os.path.join(os.path.dirname(__file__), "../fixtures/templates_seed.json"))
+
+def load_canonical_templates():
+    if os.path.exists(FIXTURE_PATH):
+        with open(FIXTURE_PATH, "r", encoding="utf-8") as f:
+            return json.load(f)
+    return []
+
+CANONICAL_TEMPLATES = load_canonical_templates()
 
 METADATA_DATABASE_URL = os.getenv(
     "SYNC_METADATA_DATABASE_URL",

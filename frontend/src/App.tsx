@@ -22,9 +22,15 @@ import {
 } from './services/api';
 
 export const App: React.FC = () => {
-    const [activeTab, setActiveTab] = useState<'query' | 'developer'>('query');
-    const [queryMode, setQueryMode] = useState<QueryMode>('agent');
-    const [theme, setTheme] = useState<'dark' | 'light'>('light');
+    const [activeTab, setActiveTab] = useState<'query' | 'developer'>(() => {
+        return (localStorage.getItem('pmc_active_tab') as 'query' | 'developer') || 'query';
+    });
+    const [queryMode, setQueryMode] = useState<QueryMode>(() => {
+        return (localStorage.getItem('pmc_query_mode') as QueryMode) || 'template';
+    });
+    const [theme, setTheme] = useState<'dark' | 'light'>(() => {
+        return (localStorage.getItem('pmc_theme') as 'dark' | 'light') || 'light';
+    });
     const [isSettingsOpen, setIsSettingsOpen] = useState(false);
 
     // Sidebar & Multi-Chat States
@@ -46,10 +52,19 @@ export const App: React.FC = () => {
     const [executing, setExecuting] = useState(false);
     const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
-    // Apply Theme to document root
+    // Sync theme, activeTab, and queryMode to localStorage & document root
     useEffect(() => {
+        localStorage.setItem('pmc_theme', theme);
         document.documentElement.setAttribute('data-theme', theme);
     }, [theme]);
+
+    useEffect(() => {
+        localStorage.setItem('pmc_active_tab', activeTab);
+    }, [activeTab]);
+
+    useEffect(() => {
+        localStorage.setItem('pmc_query_mode', queryMode);
+    }, [queryMode]);
 
     // Initial load: Fetch health & chat sessions
     useEffect(() => {
@@ -126,62 +141,46 @@ export const App: React.FC = () => {
         setExecutionResult(null);
         setCurrentQuestionText(queryText);
 
-        if (mode === 'template') {
-            try {
-                const response = await fetchSuggestions(queryText);
-                setSuggestions(response.suggestions);
-                if (response.suggestions.length > 0) {
-                    setSelectedSuggestion(response.suggestions[0]);
-                }
-            } catch (err: any) {
-                setErrorMsg(err.message || 'Failed to fetch template suggestions.');
-            } finally {
-                setLoading(false);
+        let tempMsgId = -Date.now();
+        try {
+            let currentId = activeSessionId;
+            if (!currentId) {
+                const newSession = await createChatSession(queryText.slice(0, 30), mode);
+                setSessions((prev) => [newSession, ...prev]);
+                currentId = newSession.id;
+                setActiveSessionId(currentId);
             }
-        } else {
-            // Stark AI Agent Mode (Multi-Turn Chat History Persistence)
-            let tempMsgId = -Date.now();
-            try {
-                let currentId = activeSessionId;
-                if (!currentId) {
-                    const newSession = await createChatSession(queryText.slice(0, 30), 'agent');
-                    setSessions((prev) => [newSession, ...prev]);
-                    currentId = newSession.id;
-                    setActiveSessionId(currentId);
-                }
 
-                if (!currentId) return;
+            if (!currentId) return;
 
-                // Optimistically append user message to chat immediately
-                const optimisticMsg: ChatMessageResponse = {
-                    id: tempMsgId,
-                    session_id: currentId,
-                    sender: 'user',
-                    content: queryText,
-                    sql_used: null,
-                    execution_time_ms: null,
-                    created_at: new Date().toISOString()
-                };
-                setActiveMessages((prev) => [...prev, optimisticMsg]);
+            // Optimistically append user message to chat immediately
+            const optimisticMsg: ChatMessageResponse = {
+                id: tempMsgId,
+                session_id: currentId,
+                sender: 'user',
+                content: queryText,
+                sql_used: null,
+                execution_time_ms: null,
+                created_at: new Date().toISOString()
+            };
+            setActiveMessages((prev) => [...prev, optimisticMsg]);
 
-                // Send message to persistent chat session API
-                const chatResp = await sendChatMessage(currentId, queryText);
+            // Send message to backend persistent chat session API (processed by ScopeAnswerEngine & OpenRouter)
+            const chatResp = await sendChatMessage(currentId, queryText);
 
-                // Replace temporary optimistic message with canonical user & agent response messages
-                setActiveMessages((prev) => {
-                    const filtered = prev.filter((m) => m.id !== tempMsgId);
-                    return [...filtered, chatResp.user_message, chatResp.agent_message];
-                });
+            // Replace temporary optimistic message with canonical user & agent response messages
+            setActiveMessages((prev) => {
+                const filtered = prev.filter((m) => m.id !== tempMsgId);
+                return [...filtered, chatResp.user_message, chatResp.agent_message];
+            });
 
-                // Refresh sessions sidebar list
-                loadSessions();
-            } catch (err: any) {
-                // Remove optimistic message if error occurs
-                setActiveMessages((prev) => prev.filter((m) => m.id !== tempMsgId));
-                setErrorMsg(err.message || 'Stark AI Agent execution failed.');
-            } finally {
-                setLoading(false);
-            }
+            // Refresh sessions sidebar list
+            loadSessions();
+        } catch (err: any) {
+            setActiveMessages((prev) => prev.filter((m) => m.id !== tempMsgId));
+            setErrorMsg(err.message || 'Engine execution failed.');
+        } finally {
+            setLoading(false);
         }
     };
 
@@ -267,7 +266,6 @@ export const App: React.FC = () => {
                 {/* Scrollable Content Body */}
                 <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column' }}>
 
-
                     <main style={{ flex: 1, maxWidth: '1100px', margin: '0 auto', width: '100%', padding: '24px 24px 0 24px' }}>
                         {activeTab === 'developer' ? (
                             <DeveloperStudio />
@@ -279,55 +277,13 @@ export const App: React.FC = () => {
                                     </div>
                                 )}
 
-                                {/* Template Mode Output */}
-                                {queryMode === 'template' && (
-                                    <>
-                                        {suggestions.length > 0 && (
-                                            <div className="glass-panel" style={{ marginTop: '20px' }}>
-                                                <h2 style={{ fontSize: '18px', fontWeight: 600, color: 'var(--text-primary)', marginBottom: '4px' }}>
-                                                    Top Matching Approved Query Templates
-                                                </h2>
-                                                <p style={{ fontSize: '13px', color: 'var(--text-secondary)' }}>
-                                                    Select a template to view detected entity values or resolve missing placeholders.
-                                                </p>
-
-                                                <div className="suggestions-grid">
-                                                    {suggestions.map((s) => (
-                                                        <SuggestionCard
-                                                            key={s.template_id}
-                                                            suggestion={s}
-                                                            isSelected={selectedSuggestion?.template_id === s.template_id}
-                                                            onSelect={(item) => {
-                                                                setSelectedSuggestion(item);
-                                                                setExecutionResult(null);
-                                                            }}
-                                                        />
-                                                    ))}
-                                                </div>
-                                            </div>
-                                        )}
-
-                                        {selectedSuggestion && (
-                                            <DynamicPlaceholderForm
-                                                suggestion={selectedSuggestion}
-                                                onExecute={handleExecute}
-                                                executing={executing}
-                                            />
-                                        )}
-
-                                        {executionResult && <ResultTable result={executionResult} />}
-                                    </>
-                                )}
-
-                                {/* Stark AI Agent Mode (Multi-Turn Chat Stream) */}
-                                {queryMode === 'agent' && (
-                                    <ChatStream
-                                        messages={activeMessages}
-                                        loading={loading}
-                                        questionText={currentQuestionText}
-                                        onSelectExample={(q) => handleSearch(q, queryMode)}
-                                    />
-                                )}
+                                {/* Main Multi-Turn Chat Stream (Powered by Backend OpenRouter Engine) */}
+                                <ChatStream
+                                    messages={activeMessages}
+                                    loading={loading}
+                                    questionText={currentQuestionText}
+                                    onSelectExample={(q) => handleSearch(q, queryMode)}
+                                />
                             </>
                         )}
                     </main>

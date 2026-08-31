@@ -217,10 +217,10 @@ export const DeveloperStudio: React.FC = () => {
       {/* Header Bar */}
       <div className="glass-panel" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '16px' }}>
         <div>
-          <h2 style={{ fontSize: '20px', fontWeight: 700, color: '#f8fafc', margin: 0 }}>
+          <h2 style={{ fontSize: '20px', fontWeight: 700, color: 'var(--text-primary)', margin: 0 }}>
             🛠️ Query Template Developer Studio
           </h2>
-          <p style={{ fontSize: '13px', color: '#94a3b8', margin: '4px 0 0 0' }}>
+          <p style={{ fontSize: '13px', color: 'var(--text-secondary)', margin: '4px 0 0 0' }}>
             Manage canonical templates, configure typed placeholders, inspect embeddings in PostgreSQL metadata DB, and test query execution.
           </p>
         </div>
@@ -264,9 +264,9 @@ export const DeveloperStudio: React.FC = () => {
           onChange={(e) => setSearchTerm(e.target.value)}
           style={{
             flex: 1,
-            background: 'rgba(15, 23, 42, 0.8)',
-            border: '1px solid rgba(255, 255, 255, 0.15)',
-            color: '#ffffff',
+            background: 'var(--input-bg)',
+            border: '1px solid var(--border-color)',
+            color: 'var(--text-primary)',
             padding: '10px 16px',
             borderRadius: '10px',
             outline: 'none',
@@ -276,7 +276,7 @@ export const DeveloperStudio: React.FC = () => {
         <button
           type="submit"
           style={{
-            background: 'rgba(59, 130, 246, 0.8)',
+            background: 'var(--accent-blue)',
             color: '#fff',
             border: 'none',
             padding: '10px 20px',
@@ -291,7 +291,7 @@ export const DeveloperStudio: React.FC = () => {
 
       {/* Template Cards Grid */}
       {loading ? (
-        <div style={{ textAlign: 'center', padding: '40px', color: '#94a3b8' }}>
+        <div style={{ textAlign: 'center', padding: '40px', color: 'var(--text-muted)' }}>
           Loading templates from PostgreSQL metadata DB...
         </div>
       ) : (
@@ -300,24 +300,24 @@ export const DeveloperStudio: React.FC = () => {
             <div key={tpl.template_id} className="glass-panel" style={{ display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
               <div>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
-                  <span style={{ fontFamily: 'monospace', fontWeight: 700, background: 'rgba(59, 130, 246, 0.2)', color: '#60a5fa', padding: '2px 8px', borderRadius: '6px', fontSize: '13px' }}>
+                  <span style={{ fontFamily: 'monospace', fontWeight: 700, background: 'rgba(37, 99, 235, 0.15)', color: 'var(--accent-blue)', padding: '2px 8px', borderRadius: '6px', fontSize: '13px' }}>
                     {tpl.template_id}
                   </span>
 
                   <div style={{ display: 'flex', gap: '6px' }}>
-                    <span style={{ fontSize: '11px', padding: '2px 6px', borderRadius: '4px', background: tpl.is_active ? 'rgba(16, 185, 129, 0.2)' : 'rgba(239, 68, 68, 0.2)', color: tpl.is_active ? '#34d399' : '#f87171' }}>
+                    <span style={{ fontSize: '11px', padding: '2px 6px', borderRadius: '4px', background: tpl.is_active ? 'rgba(16, 185, 129, 0.2)' : 'rgba(239, 68, 68, 0.2)', color: tpl.is_active ? 'var(--accent-emerald)' : '#ef4444', fontWeight: 600 }}>
                       {tpl.is_active ? 'ACTIVE' : 'INACTIVE'}
                     </span>
-                    <span style={{ fontSize: '11px', padding: '2px 6px', borderRadius: '4px', background: tpl.has_embedding ? 'rgba(139, 92, 246, 0.2)' : 'rgba(148, 163, 184, 0.2)', color: tpl.has_embedding ? '#c084fc' : '#94a3b8' }}>
+                    <span style={{ fontSize: '11px', padding: '2px 6px', borderRadius: '4px', background: tpl.has_embedding ? 'rgba(124, 58, 237, 0.15)' : 'rgba(148, 163, 184, 0.2)', color: tpl.has_embedding ? 'var(--accent-purple)' : 'var(--text-muted)', fontWeight: 600 }}>
                       {tpl.has_embedding ? 'VECTOR 768-D' : 'NO VECTOR'}
                     </span>
                   </div>
                 </div>
 
-                <h3 style={{ fontSize: '15px', fontWeight: 600, color: '#f8fafc', margin: '4px 0' }}>
+                <h3 style={{ fontSize: '15px', fontWeight: 600, color: 'var(--text-primary)', margin: '4px 0' }}>
                   {tpl.question_template}
                 </h3>
-                <p style={{ fontSize: '12px', color: '#94a3b8', margin: '0 0 10px 0', fontFamily: 'monospace' }}>
+                <p style={{ fontSize: '12px', color: 'var(--text-secondary)', margin: '0 0 10px 0', fontFamily: 'monospace' }}>
                   Intent: {tpl.intent}
                 </p>
 
@@ -325,7 +325,7 @@ export const DeveloperStudio: React.FC = () => {
                 {tpl.placeholders.length > 0 && (
                   <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px', marginBottom: '12px' }}>
                     {tpl.placeholders.map((p) => (
-                      <span key={p.placeholder_name} style={{ fontSize: '11px', background: 'rgba(255, 255, 255, 0.08)', border: '1px solid rgba(255, 255, 255, 0.1)', color: '#cbd5e1', padding: '2px 6px', borderRadius: '4px' }}>
+                      <span key={p.placeholder_name} style={{ fontSize: '11px', background: 'var(--bg-card-hover)', border: '1px solid var(--border-color)', color: 'var(--text-secondary)', padding: '2px 6px', borderRadius: '4px' }}>
                         {p.placeholder_name} ({p.data_type})
                       </span>
                     ))}
@@ -334,14 +334,14 @@ export const DeveloperStudio: React.FC = () => {
               </div>
 
               {/* Card Actions */}
-              <div style={{ display: 'flex', gap: '8px', marginTop: '12px', paddingTop: '12px', borderTop: '1px solid rgba(255, 255, 255, 0.08)' }}>
+              <div style={{ display: 'flex', gap: '8px', marginTop: '12px', paddingTop: '12px', borderTop: '1px solid var(--border-color)' }}>
                 <button
                   onClick={() => openTestSandbox(tpl)}
                   style={{
                     flex: 1,
                     background: 'rgba(16, 185, 129, 0.15)',
                     border: '1px solid rgba(16, 185, 129, 0.3)',
-                    color: '#34d399',
+                    color: 'var(--accent-emerald)',
                     padding: '6px 10px',
                     borderRadius: '6px',
                     fontSize: '12px',
@@ -356,10 +356,11 @@ export const DeveloperStudio: React.FC = () => {
                   style={{
                     background: 'rgba(59, 130, 246, 0.15)',
                     border: '1px solid rgba(59, 130, 246, 0.3)',
-                    color: '#60a5fa',
+                    color: 'var(--accent-blue)',
                     padding: '6px 12px',
                     borderRadius: '6px',
                     fontSize: '12px',
+                    fontWeight: 600,
                     cursor: 'pointer'
                   }}
                 >
@@ -368,9 +369,9 @@ export const DeveloperStudio: React.FC = () => {
                 <button
                   onClick={() => handleToggleActive(tpl)}
                   style={{
-                    background: 'rgba(148, 163, 184, 0.15)',
-                    border: '1px solid rgba(148, 163, 184, 0.3)',
-                    color: '#cbd5e1',
+                    background: 'var(--bg-card-hover)',
+                    border: '1px solid var(--border-color)',
+                    color: 'var(--text-secondary)',
                     padding: '6px 10px',
                     borderRadius: '6px',
                     fontSize: '12px',
@@ -402,12 +403,12 @@ export const DeveloperStudio: React.FC = () => {
       {/* CREATE / EDIT MODAL */}
       {showModal && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0, 0, 0, 0.75)', backdropFilter: 'blur(6px)', zIndex: 100, display: 'flex', justifyContent: 'center', alignItems: 'center', padding: '20px' }}>
-          <div className="glass-panel" style={{ width: '100%', maxWidth: '720px', maxHeight: '90vh', overflowY: 'auto', background: '#0f172a', border: '1px solid rgba(255, 255, 255, 0.2)' }}>
+          <div className="glass-panel" style={{ width: '100%', maxWidth: '720px', maxHeight: '90vh', overflowY: 'auto', background: 'var(--bg-card)', border: '1px solid var(--border-color)' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
-              <h3 style={{ fontSize: '18px', fontWeight: 700, color: '#f8fafc', margin: 0 }}>
+              <h3 style={{ fontSize: '18px', fontWeight: 700, color: 'var(--text-primary)', margin: 0 }}>
                 {editingTemplate ? `Edit Template '${editingTemplate.template_id}'` : 'Create New Query Template'}
               </h3>
-              <button onClick={() => setShowModal(false)} style={{ background: 'transparent', border: 'none', color: '#94a3b8', fontSize: '20px', cursor: 'pointer' }}>
+              <button onClick={() => setShowModal(false)} style={{ background: 'transparent', border: 'none', color: 'var(--text-muted)', fontSize: '20px', cursor: 'pointer' }}>
                 ✕
               </button>
             </div>
@@ -415,87 +416,87 @@ export const DeveloperStudio: React.FC = () => {
             <form onSubmit={handleSaveTemplate} style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
                 <div>
-                  <label style={{ fontSize: '12px', color: '#94a3b8', display: 'block', marginBottom: '4px' }}>Template ID</label>
+                  <label style={{ fontSize: '12px', color: 'var(--text-secondary)', display: 'block', marginBottom: '4px' }}>Template ID</label>
                   <input
                     type="text"
                     required
                     disabled={!!editingTemplate}
                     value={formData.template_id}
                     onChange={(e) => setFormData({ ...formData, template_id: e.target.value })}
-                    style={{ width: '100%', padding: '8px 12px', background: 'rgba(255, 255, 255, 0.05)', border: '1px solid rgba(255, 255, 255, 0.15)', color: '#fff', borderRadius: '6px' }}
+                    style={{ width: '100%', padding: '8px 12px', background: 'var(--input-bg)', border: '1px solid var(--border-color)', color: 'var(--text-primary)', borderRadius: '6px' }}
                   />
                 </div>
                 <div>
-                  <label style={{ fontSize: '12px', color: '#94a3b8', display: 'block', marginBottom: '4px' }}>Intent Name</label>
+                  <label style={{ fontSize: '12px', color: 'var(--text-secondary)', display: 'block', marginBottom: '4px' }}>Intent Name</label>
                   <input
                     type="text"
                     required
                     value={formData.intent}
                     onChange={(e) => setFormData({ ...formData, intent: e.target.value })}
-                    style={{ width: '100%', padding: '8px 12px', background: 'rgba(255, 255, 255, 0.05)', border: '1px solid rgba(255, 255, 255, 0.15)', color: '#fff', borderRadius: '6px' }}
+                    style={{ width: '100%', padding: '8px 12px', background: 'var(--input-bg)', border: '1px solid var(--border-color)', color: 'var(--text-primary)', borderRadius: '6px' }}
                   />
                 </div>
               </div>
 
               <div>
-                <label style={{ fontSize: '12px', color: '#94a3b8', display: 'block', marginBottom: '4px' }}>Natural Language Question Template (Display)</label>
+                <label style={{ fontSize: '12px', color: 'var(--text-secondary)', display: 'block', marginBottom: '4px' }}>Natural Language Question Template (Display)</label>
                 <input
                   type="text"
                   required
                   placeholder="e.g. How many pending complaints in {department}?"
                   value={formData.question_template}
                   onChange={(e) => setFormData({ ...formData, question_template: e.target.value })}
-                  style={{ width: '100%', padding: '8px 12px', background: 'rgba(255, 255, 255, 0.05)', border: '1px solid rgba(255, 255, 255, 0.15)', color: '#fff', borderRadius: '6px' }}
+                  style={{ width: '100%', padding: '8px 12px', background: 'var(--input-bg)', border: '1px solid var(--border-color)', color: 'var(--text-primary)', borderRadius: '6px' }}
                 />
               </div>
 
               <div>
-                <label style={{ fontSize: '12px', color: '#94a3b8', display: 'block', marginBottom: '4px' }}>Retrieval Text (Used for Vector Embedding matching)</label>
+                <label style={{ fontSize: '12px', color: 'var(--text-secondary)', display: 'block', marginBottom: '4px' }}>Retrieval Text (Used for Vector Embedding matching)</label>
                 <textarea
                   required
                   rows={2}
                   placeholder="e.g. count open pending complaints filtered by department"
                   value={formData.retrieval_text}
                   onChange={(e) => setFormData({ ...formData, retrieval_text: e.target.value })}
-                  style={{ width: '100%', padding: '8px 12px', background: 'rgba(255, 255, 255, 0.05)', border: '1px solid rgba(255, 255, 255, 0.15)', color: '#fff', borderRadius: '6px', fontFamily: 'monospace' }}
+                  style={{ width: '100%', padding: '8px 12px', background: 'var(--input-bg)', border: '1px solid var(--border-color)', color: 'var(--text-primary)', borderRadius: '6px', fontFamily: 'monospace' }}
                 />
               </div>
 
               <div>
-                <label style={{ fontSize: '12px', color: '#94a3b8', display: 'block', marginBottom: '4px' }}>Parameterized SQL Query Template</label>
+                <label style={{ fontSize: '12px', color: 'var(--text-secondary)', display: 'block', marginBottom: '4px' }}>Parameterized SQL Query Template</label>
                 <textarea
                   required
                   rows={4}
                   placeholder="SELECT COUNT(*) FROM complaint WHERE department_id = :department_id AND closed_at IS NULL;"
                   value={formData.sql_template}
                   onChange={(e) => setFormData({ ...formData, sql_template: e.target.value })}
-                  style={{ width: '100%', padding: '8px 12px', background: 'rgba(255, 255, 255, 0.05)', border: '1px solid rgba(255, 255, 255, 0.15)', color: '#60a5fa', borderRadius: '6px', fontFamily: 'monospace', fontSize: '12px' }}
+                  style={{ width: '100%', padding: '8px 12px', background: 'var(--input-bg)', border: '1px solid var(--border-color)', color: 'var(--accent-blue)', borderRadius: '6px', fontFamily: 'monospace', fontSize: '12px' }}
                 />
               </div>
 
               {/* Placeholders Editor */}
-              <div style={{ marginTop: '10px', paddingTop: '10px', borderTop: '1px solid rgba(255, 255, 255, 0.1)' }}>
+              <div style={{ marginTop: '10px', paddingTop: '10px', borderTop: '1px solid var(--border-color)' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
-                  <label style={{ fontSize: '13px', fontWeight: 600, color: '#f8fafc' }}>Typed Placeholders ({formData.placeholders.length})</label>
-                  <button type="button" onClick={addPlaceholder} style={{ background: 'rgba(59, 130, 246, 0.2)', border: '1px solid rgba(59, 130, 246, 0.4)', color: '#60a5fa', padding: '4px 10px', borderRadius: '6px', fontSize: '12px', cursor: 'pointer' }}>
+                  <label style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text-primary)' }}>Typed Placeholders ({formData.placeholders.length})</label>
+                  <button type="button" onClick={addPlaceholder} style={{ background: 'rgba(59, 130, 246, 0.15)', border: '1px solid rgba(59, 130, 246, 0.4)', color: 'var(--accent-blue)', padding: '4px 10px', borderRadius: '6px', fontSize: '12px', cursor: 'pointer', fontWeight: 600 }}>
                     + Add Placeholder
                   </button>
                 </div>
 
                 {formData.placeholders.map((p, idx) => (
-                  <div key={idx} style={{ background: 'rgba(15, 23, 42, 0.6)', padding: '10px', borderRadius: '8px', marginBottom: '8px', border: '1px solid rgba(255, 255, 255, 0.08)' }}>
+                  <div key={idx} style={{ background: 'var(--bg-card-hover)', padding: '10px', borderRadius: '8px', marginBottom: '8px', border: '1px solid var(--border-color)' }}>
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 30px', gap: '8px', alignItems: 'center' }}>
                       <input
                         type="text"
                         placeholder="Name (e.g. department)"
                         value={p.placeholder_name}
                         onChange={(e) => updatePlaceholder(idx, 'placeholder_name', e.target.value)}
-                        style={{ padding: '6px 8px', background: 'rgba(255, 255, 255, 0.05)', border: '1px solid rgba(255, 255, 255, 0.1)', color: '#fff', borderRadius: '4px', fontSize: '12px' }}
+                        style={{ padding: '6px 8px', background: 'var(--input-bg)', border: '1px solid var(--border-color)', color: 'var(--text-primary)', borderRadius: '4px', fontSize: '12px' }}
                       />
                       <select
                         value={p.data_type}
                         onChange={(e) => updatePlaceholder(idx, 'data_type', e.target.value)}
-                        style={{ padding: '6px 8px', background: '#0f172a', border: '1px solid rgba(255, 255, 255, 0.1)', color: '#fff', borderRadius: '4px', fontSize: '12px' }}
+                        style={{ padding: '6px 8px', background: 'var(--input-bg)', border: '1px solid var(--border-color)', color: 'var(--text-primary)', borderRadius: '4px', fontSize: '12px' }}
                       >
                         <option value="REFERENCE">REFERENCE (DB Lookup)</option>
                         <option value="INTEGER">INTEGER</option>
@@ -507,9 +508,9 @@ export const DeveloperStudio: React.FC = () => {
                         placeholder="Source Table (e.g. department_master)"
                         value={p.source_table || ''}
                         onChange={(e) => updatePlaceholder(idx, 'source_table', e.target.value)}
-                        style={{ padding: '6px 8px', background: 'rgba(255, 255, 255, 0.05)', border: '1px solid rgba(255, 255, 255, 0.1)', color: '#fff', borderRadius: '4px', fontSize: '12px' }}
+                        style={{ padding: '6px 8px', background: 'var(--input-bg)', border: '1px solid var(--border-color)', color: 'var(--text-primary)', borderRadius: '4px', fontSize: '12px' }}
                       />
-                      <button type="button" onClick={() => removePlaceholder(idx)} style={{ color: '#f87171', background: 'none', border: 'none', cursor: 'pointer', fontSize: '14px' }}>
+                      <button type="button" onClick={() => removePlaceholder(idx)} style={{ color: '#ef4444', background: 'none', border: 'none', cursor: 'pointer', fontSize: '14px' }}>
                         ✕
                       </button>
                     </div>
@@ -519,7 +520,7 @@ export const DeveloperStudio: React.FC = () => {
 
               {/* Submit / Cancel Buttons */}
               <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '16px' }}>
-                <button type="button" onClick={() => setShowModal(false)} style={{ padding: '8px 16px', background: 'rgba(148, 163, 184, 0.2)', border: 'none', color: '#cbd5e1', borderRadius: '8px', cursor: 'pointer' }}>
+                <button type="button" onClick={() => setShowModal(false)} style={{ padding: '8px 16px', background: 'var(--bg-card-hover)', border: '1px solid var(--border-color)', color: 'var(--text-secondary)', borderRadius: '8px', cursor: 'pointer' }}>
                   Cancel
                 </button>
                 <button type="submit" style={{ padding: '8px 20px', background: 'linear-gradient(135deg, #3b82f6, #2563eb)', border: 'none', color: '#fff', borderRadius: '8px', fontWeight: 600, cursor: 'pointer' }}>
@@ -534,36 +535,36 @@ export const DeveloperStudio: React.FC = () => {
       {/* TEST & RUN SANDBOX DRAWER */}
       {testTemplate && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0, 0, 0, 0.8)', backdropFilter: 'blur(6px)', zIndex: 110, display: 'flex', justifyContent: 'center', alignItems: 'center', padding: '20px' }}>
-          <div className="glass-panel" style={{ width: '100%', maxWidth: '800px', maxHeight: '90vh', overflowY: 'auto', background: '#0f172a', border: '1px solid rgba(16, 185, 129, 0.4)' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', borderBottom: '1px solid rgba(255, 255, 255, 0.1)', paddingBottom: '12px' }}>
+          <div className="glass-panel" style={{ width: '100%', maxWidth: '800px', maxHeight: '90vh', overflowY: 'auto', background: 'var(--bg-card)', border: '1px solid rgba(16, 185, 129, 0.4)' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', borderBottom: '1px solid var(--border-color)', paddingBottom: '12px' }}>
               <div>
-                <h3 style={{ fontSize: '18px', fontWeight: 700, color: '#34d399', margin: 0 }}>
+                <h3 style={{ fontSize: '18px', fontWeight: 700, color: 'var(--accent-emerald)', margin: 0 }}>
                   ⚡ Test & Run Query Sandbox: {testTemplate.template_id}
                 </h3>
-                <p style={{ fontSize: '12px', color: '#94a3b8', margin: '4px 0 0 0' }}>
+                <p style={{ fontSize: '12px', color: 'var(--text-secondary)', margin: '4px 0 0 0' }}>
                   Execute SQL template directly against PMC database and inspect output dataset.
                 </p>
               </div>
-              <button onClick={() => setTestTemplate(null)} style={{ background: 'transparent', border: 'none', color: '#94a3b8', fontSize: '22px', cursor: 'pointer' }}>
+              <button onClick={() => setTestTemplate(null)} style={{ background: 'transparent', border: 'none', color: 'var(--text-muted)', fontSize: '22px', cursor: 'pointer' }}>
                 ✕
               </button>
             </div>
 
             {/* Template SQL snippet */}
-            <div style={{ background: 'rgba(15, 23, 42, 0.8)', padding: '12px', borderRadius: '8px', border: '1px solid rgba(255, 255, 255, 0.1)', marginBottom: '16px', fontFamily: 'monospace', fontSize: '12px', color: '#60a5fa' }}>
+            <div style={{ background: 'var(--input-bg)', padding: '12px', borderRadius: '8px', border: '1px solid var(--border-color)', marginBottom: '16px', fontFamily: 'monospace', fontSize: '12px', color: 'var(--accent-blue)' }}>
               {testTemplate.sql_template}
             </div>
 
             {/* Test Parameter Inputs */}
             {testTemplate.placeholders.length > 0 && (
               <div style={{ marginBottom: '16px' }}>
-                <h4 style={{ fontSize: '13px', color: '#f8fafc', marginBottom: '8px' }}>Test Parameter Inputs</h4>
+                <h4 style={{ fontSize: '13px', color: 'var(--text-primary)', marginBottom: '8px' }}>Test Parameter Inputs</h4>
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '10px' }}>
                   {testTemplate.placeholders.map((p) => {
                     const key = p.data_type === 'REFERENCE' ? `${p.placeholder_name}_id` : p.placeholder_name;
                     return (
                       <div key={p.placeholder_name}>
-                        <label style={{ fontSize: '12px', color: '#cbd5e1', display: 'block', marginBottom: '4px' }}>
+                        <label style={{ fontSize: '12px', color: 'var(--text-secondary)', display: 'block', marginBottom: '4px' }}>
                           {p.placeholder_name} ({p.data_type})
                         </label>
                         <input
@@ -571,7 +572,7 @@ export const DeveloperStudio: React.FC = () => {
                           placeholder={`Enter ${key}`}
                           value={testParams[key] ?? ''}
                           onChange={(e) => setTestParams({ ...testParams, [key]: p.data_type === 'INTEGER' ? Number(e.target.value) : e.target.value })}
-                          style={{ width: '100%', padding: '8px 10px', background: 'rgba(255, 255, 255, 0.05)', border: '1px solid rgba(255, 255, 255, 0.15)', color: '#fff', borderRadius: '6px', fontSize: '13px' }}
+                          style={{ width: '100%', padding: '8px 10px', background: 'var(--input-bg)', border: '1px solid var(--border-color)', color: 'var(--text-primary)', borderRadius: '6px', fontSize: '13px' }}
                         />
                       </div>
                     );

@@ -64,10 +64,19 @@ export interface AdminQueryTemplatePayload {
   placeholders: PlaceholderMetadata[];
 }
 
+export interface CandidateTemplateDetail {
+  template_id: string;
+  intent: string;
+  question_template: string;
+  score: number;
+}
+
 export interface AgentQueryResponse {
   question: string;
   markdown_report: string;
   sql_used: string;
+  template_id?: string | null;
+  candidate_templates?: CandidateTemplateDetail[] | null;
   execution_time_ms: number;
   retry_count: number;
   status: string;
@@ -79,6 +88,8 @@ export interface ChatMessageResponse {
   sender: 'user' | 'agent';
   content: string;
   sql_used?: string | null;
+  template_id?: string | null;
+  candidate_templates?: CandidateTemplateDetail[] | null;
   execution_time_ms?: number | null;
   created_at: string;
 }

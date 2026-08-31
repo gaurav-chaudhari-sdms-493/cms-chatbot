@@ -21,7 +21,7 @@ export const SuggestionCard: React.FC<SuggestionCardProps> = ({
       onClick={() => onSelect(suggestion)}
     >
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <span style={{ fontSize: '12px', fontWeight: 600, color: '#94a3b8' }}>
+        <span style={{ fontSize: '12px', fontWeight: 600, color: 'var(--text-secondary)' }}>
           {suggestion.template_id}
         </span>
         <span className="score-tag">{matchPercentage}% Match</span>
@@ -31,7 +31,7 @@ export const SuggestionCard: React.FC<SuggestionCardProps> = ({
 
       {detectedKeys.length > 0 && (
         <div style={{ marginTop: '10px' }}>
-          <span style={{ fontSize: '11px', color: '#64748b', display: 'block' }}>Detected Entities:</span>
+          <span style={{ fontSize: '11px', color: 'var(--text-muted)', display: 'block' }}>Detected Entities:</span>
           {detectedKeys.map((key) => {
             const val = suggestion.detected_values[key];
             return (

@@ -1,0 +1,779 @@
+[
+  {
+    "template_id": "CMP_A01",
+    "intent": "pending_complaints_by_department",
+    "question_template": "How many complaints are pending department wise?",
+    "retrieval_text": "how many complaints are pending department wise total open unresolved active backlog distribution by department punyat kiti complaints pending aahet vibhaganusar dakjava",
+    "placeholders": [],
+    "result_type": "tabular",
+    "is_active": true,
+    "version": 1,
+    "sql_template": "SELECT d.department_name, d.department_name_mar, COUNT(*) AS pending\nFROM complaint c\nJOIN status_master s ON s.id = c.status_id AND s.is_terminal = false\nJOIN department_master d ON d.id = c.department_id\nGROUP BY d.id, d.department_name, d.department_name_mar\nORDER BY pending DESC;"
+  },
+  {
+    "template_id": "CMP_A02",
+    "intent": "pending_complaints_filtered",
+    "question_template": "Show pending complaints for {department} or {ward}.",
+    "retrieval_text": "show pending open unresolved complaints for specific department ward or zone water supply drainage kothrud aundh pending count",
+    "placeholders": [
+      {
+        "placeholder_name": "department",
+        "data_type": "REFERENCE",
+        "input_mode": "searchable_dropdown",
+        "source_table": "department_master",
+        "source_id_column": "id",
+        "source_label_column": "department_name",
+        "required": false,
+        "display_order": 1
+      },
+      {
+        "placeholder_name": "ward",
+        "data_type": "REFERENCE",
+        "input_mode": "searchable_dropdown",
+        "source_table": "ward_master",
+        "source_id_column": "id",
+        "source_label_column": "ward_name",
+        "required": false,
+        "display_order": 2
+      }
+    ],
+    "result_type": "tabular",
+    "is_active": true,
+    "version": 1,
+    "sql_template": "SELECT d.department_name, w.ward_name, COUNT(*) AS pending\nFROM complaint c\nJOIN status_master s ON s.id = c.status_id AND s.is_terminal = false\nJOIN department_master d ON d.id = c.department_id\nJOIN ward_master w ON w.id = c.ward_id\nWHERE (:department_id IS NULL OR c.department_id = :department_id)\n  AND (:ward_id IS NULL OR c.ward_id = :ward_id)\nGROUP BY d.department_name, w.ward_name\nORDER BY pending DESC;"
+  },
+  {
+    "template_id": "CMP_A03",
+    "intent": "pending_complaints_percentage",
+    "question_template": "What percentage of total complaints are currently pending?",
+    "retrieval_text": "what percentage of total complaints are currently pending total open vs resolved ratio ratio percentage dakjava",
+    "placeholders": [],
+    "result_type": "tabular",
+    "is_active": true,
+    "version": 1,
+    "sql_template": "SELECT COUNT(*) FILTER (WHERE s.is_terminal = false) AS pending,\n       COUNT(*) AS total,\n       ROUND(100.0 * COUNT(*) FILTER (WHERE s.is_terminal = false) / NULLIF(COUNT(*), 0), 1) AS pending_pct\nFROM complaint c\nJOIN status_master s ON s.id = c.status_id;"
+  },
+  {
+    "template_id": "CMP_B01",
+    "intent": "top_performing_officers",
+    "question_template": "Which top {limit} officers are performing best or worst overall?",
+    "retrieval_text": "which officers are performing best worst overall ranking resolved count avg resolution time slow fast officers best officer in pune hadapsar kothrud",
+    "placeholders": [
+      {
+        "placeholder_name": "limit",
+        "data_type": "INTEGER",
+        "input_mode": "number_input",
+        "required": false,
+        "default_value": 10,
+        "display_order": 1
+      }
+    ],
+    "result_type": "tabular",
+    "is_active": true,
+    "version": 1,
+    "sql_template": "SELECT u.full_name, u.designation, d.department_name,\n       COUNT(*) AS resolved_count,\n       ROUND(AVG(EXTRACT(epoch FROM (c.resolved_at - c.created_at))/86400)::numeric, 1) AS avg_days\nFROM complaint c\nJOIN user_master u ON u.id = c.resolved_by_id\nLEFT JOIN department_master d ON d.id = u.department_id\nWHERE c.resolved_at IS NOT NULL\nGROUP BY u.id, u.full_name, u.designation, d.department_name\nORDER BY resolved_count DESC\nLIMIT :limit;"
+  },
+  {
+    "template_id": "CMP_B02",
+    "intent": "officers_with_sla_breaches",
+    "question_template": "Which officers have the most SLA breaches?",
+    "retrieval_text": "which officers have the most sla breaches overdue maximum breach counts worst performing officers",
+    "placeholders": [
+      {
+        "placeholder_name": "limit",
+        "data_type": "INTEGER",
+        "input_mode": "number_input",
+        "required": false,
+        "default_value": 10,
+        "display_order": 1
+      }
+    ],
+    "result_type": "tabular",
+    "is_active": true,
+    "version": 1,
+    "sql_template": "SELECT u.full_name, u.designation, COUNT(*) AS breaches\nFROM complaint c\nJOIN user_master u ON u.id = COALESCE(c.assigned_to_id, c.ward_officer_id)\nWHERE c.sla_status = 'BREACHED'\nGROUP BY u.id, u.full_name, u.designation\nORDER BY breaches DESC\nLIMIT :limit;"
+  },
+  {
+    "template_id": "CMP_B03",
+    "intent": "inactive_officers_audit",
+    "question_template": "Which officers have not resolved a single complaint in the last 30 days?",
+    "retrieval_text": "which officers have not resolved a single complaint in last 30 days zero resolutions inactive officers audit list",
+    "placeholders": [
+      {
+        "placeholder_name": "limit",
+        "data_type": "INTEGER",
+        "input_mode": "number_input",
+        "required": false,
+        "default_value": 10,
+        "display_order": 1
+      }
+    ],
+    "result_type": "tabular",
+    "is_active": true,
+    "version": 1,
+    "sql_template": "SELECT u.full_name, u.designation, d.department_name\nFROM user_master u\nLEFT JOIN department_master d ON d.id = u.department_id\nWHERE u.is_active = true\n  AND NOT EXISTS (\n      SELECT 1 FROM complaint c\n      WHERE c.resolved_by_id = u.id\n        AND c.resolved_at >= now() - interval '30 days'\n  )\nLIMIT :limit;"
+  },
+  {
+    "template_id": "CMP_C01",
+    "intent": "overall_sla_compliance_rate",
+    "question_template": "What is the overall SLA compliance rate citywide?",
+    "retrieval_text": "what is the overall sla compliance rate percentage citywide meeting target total within deadline vs breached",
+    "placeholders": [],
+    "result_type": "tabular",
+    "is_active": true,
+    "version": 1,
+    "sql_template": "SELECT COUNT(*) FILTER (WHERE c.resolved_at IS NOT NULL AND c.resolved_at <= c.sla_deadline) AS within_sla,\n       COUNT(*) FILTER (WHERE c.resolved_at IS NOT NULL) AS total_resolved,\n       ROUND(100.0 * COUNT(*) FILTER (WHERE c.resolved_at <= c.sla_deadline)\n             / NULLIF(COUNT(*) FILTER (WHERE c.resolved_at IS NOT NULL), 0), 1) AS compliance_pct\nFROM complaint c\nWHERE c.sla_deadline IS NOT NULL;"
+  },
+  {
+    "template_id": "CMP_C02",
+    "intent": "sla_breached_by_department",
+    "question_template": "How many complaints have breached SLA right now by department?",
+    "retrieval_text": "how many complaints have breached sla right now department wise overdue count deadline crossed",
+    "placeholders": [],
+    "result_type": "tabular",
+    "is_active": true,
+    "version": 1,
+    "sql_template": "SELECT d.department_name, COUNT(*) AS breached_count\nFROM complaint c\nJOIN status_master s ON s.id = c.status_id AND s.is_terminal = false\nJOIN department_master d ON d.id = c.department_id\nWHERE c.sla_status = 'BREACHED' OR c.sla_deadline < now()\nGROUP BY d.department_name\nORDER BY breached_count DESC;"
+  },
+  {
+    "template_id": "CMP_C03",
+    "intent": "sla_near_breach_warning",
+    "question_template": "Show complaints reaching 75% or 90% of SLA time (critical list).",
+    "retrieval_text": "show complaints reaching 75 90 percent of sla time critical near breach warning alert list",
+    "placeholders": [
+      {
+        "placeholder_name": "limit",
+        "data_type": "INTEGER",
+        "input_mode": "number_input",
+        "required": false,
+        "default_value": 10,
+        "display_order": 1
+      }
+    ],
+    "result_type": "tabular",
+    "is_active": true,
+    "version": 1,
+    "sql_template": "SELECT c.complaint_number, c.title, c.sla_deadline,\n       ROUND(100.0 * EXTRACT(epoch FROM (now() - c.created_at))\n             / NULLIF(EXTRACT(epoch FROM (c.sla_deadline - c.created_at)), 0)) AS sla_consumed_pct\nFROM complaint c\nJOIN status_master s ON s.id = c.status_id AND s.is_terminal = false\nWHERE c.sla_deadline IS NOT NULL AND c.sla_deadline > now()\n  AND (now() - c.created_at) >= 0.75 * (c.sla_deadline - c.created_at)\nORDER BY sla_consumed_pct DESC\nLIMIT :limit;"
+  },
+  {
+    "template_id": "CMP_C04",
+    "intent": "sla_compliance_by_ward",
+    "question_template": "Which ward has the worst or best SLA compliance?",
+    "retrieval_text": "which ward has worst best sla compliance ranking ward wise percentage meeting deadline",
+    "placeholders": [],
+    "result_type": "tabular",
+    "is_active": true,
+    "version": 1,
+    "sql_template": "SELECT w.ward_name,\n       COUNT(*) FILTER (WHERE c.resolved_at <= c.sla_deadline) AS within_sla,\n       COUNT(*) FILTER (WHERE c.resolved_at IS NOT NULL) AS total_resolved,\n       ROUND(100.0 * COUNT(*) FILTER (WHERE c.resolved_at <= c.sla_deadline)\n             / NULLIF(COUNT(*) FILTER (WHERE c.resolved_at IS NOT NULL), 0), 1) AS compliance_pct\nFROM complaint c\nJOIN ward_master w ON w.id = c.ward_id\nWHERE w.ward_number IS NOT NULL AND c.sla_deadline IS NOT NULL\nGROUP BY w.id, w.ward_name\nORDER BY compliance_pct ASC;"
+  },
+  {
+    "template_id": "CMP_D01",
+    "intent": "escalations_summary",
+    "question_template": "How many complaints got escalated department or level wise?",
+    "retrieval_text": "how many complaints got escalated department level wise total escalation counts level 1 level 2 commissioner level",
+    "placeholders": [],
+    "result_type": "tabular",
+    "is_active": true,
+    "version": 1,
+    "sql_template": "SELECT eh.to_level, COUNT(*) AS escalation_count\nFROM escalation_history eh\nJOIN complaint c ON c.id = eh.complaint_id\nGROUP BY eh.to_level\nORDER BY escalation_count DESC;"
+  },
+  {
+    "template_id": "CMP_D02",
+    "intent": "multiple_escalations_list",
+    "question_template": "Which complaints have been escalated twice or more?",
+    "retrieval_text": "which complaints have been escalated twice or more multiple times escalated commissioner level list",
+    "placeholders": [
+      {
+        "placeholder_name": "limit",
+        "data_type": "INTEGER",
+        "input_mode": "number_input",
+        "required": false,
+        "default_value": 10,
+        "display_order": 1
+      }
+    ],
+    "result_type": "tabular",
+    "is_active": true,
+    "version": 1,
+    "sql_template": "SELECT c.complaint_number, c.title, c.escalation_level, COUNT(eh.id) AS times_escalated\nFROM complaint c\nJOIN escalation_history eh ON eh.complaint_id = c.id\nGROUP BY c.id, c.complaint_number, c.title, c.escalation_level\nHAVING COUNT(eh.id) >= 2\nORDER BY times_escalated DESC\nLIMIT :limit;"
+  },
+  {
+    "template_id": "CMP_D03",
+    "intent": "pending_escalated_complaints",
+    "question_template": "How many escalated complaints are still pending?",
+    "retrieval_text": "how many escalated complaints are still pending open unresolved even after escalation level list",
+    "placeholders": [
+      {
+        "placeholder_name": "limit",
+        "data_type": "INTEGER",
+        "input_mode": "number_input",
+        "required": false,
+        "default_value": 10,
+        "display_order": 1
+      }
+    ],
+    "result_type": "tabular",
+    "is_active": true,
+    "version": 1,
+    "sql_template": "SELECT c.complaint_number, c.title, c.escalation_level, d.department_name, w.ward_name\nFROM complaint c\nJOIN status_master s ON s.id = c.status_id AND s.is_terminal = false\nLEFT JOIN department_master d ON d.id = c.department_id\nLEFT JOIN ward_master w ON w.id = c.ward_id\nWHERE c.escalation_level > 0\nORDER BY c.escalation_level DESC\nLIMIT :limit;"
+  },
+  {
+    "template_id": "CMP_E01",
+    "intent": "top_complaint_categories",
+    "question_template": "What are the top {limit} complaint categories in Pune?",
+    "retrieval_text": "what are the top complaint categories in pune potholes garbage dumping drainage overflow water supply streetlight",
+    "placeholders": [
+      {
+        "placeholder_name": "limit",
+        "data_type": "INTEGER",
+        "input_mode": "number_input",
+        "required": false,
+        "default_value": 5,
+        "display_order": 1
+      }
+    ],
+    "result_type": "tabular",
+    "is_active": true,
+    "version": 1,
+    "sql_template": "SELECT cat.category_name, cat.category_name_mar, COUNT(*) AS complaint_count\nFROM complaint c\nJOIN category_master cat ON cat.id = c.category_id\nGROUP BY cat.id, cat.category_name, cat.category_name_mar\nORDER BY complaint_count DESC\nLIMIT :limit;"
+  },
+  {
+    "template_id": "CMP_E02",
+    "intent": "fastest_rising_category",
+    "question_template": "Which category is rising fastest compared to last month?",
+    "retrieval_text": "which category is rising fastest compared to last month surge increase monthly diff monsoon potholes",
+    "placeholders": [
+      {
+        "placeholder_name": "limit",
+        "data_type": "INTEGER",
+        "input_mode": "number_input",
+        "required": false,
+        "default_value": 5,
+        "display_order": 1
+      }
+    ],
+    "result_type": "tabular",
+    "is_active": true,
+    "version": 1,
+    "sql_template": "SELECT cat.category_name,\n       COUNT(*) FILTER (WHERE c.created_at >= date_trunc('month', now())) AS this_month,\n       COUNT(*) FILTER (WHERE c.created_at >= date_trunc('month', now()) - interval '1 month'\n                          AND c.created_at < date_trunc('month', now())) AS last_month\nFROM complaint c\nJOIN category_master cat ON cat.id = c.category_id\nGROUP BY cat.id, cat.category_name\nORDER BY (COUNT(*) FILTER (WHERE c.created_at >= date_trunc('month', now())) -\n          COUNT(*) FILTER (WHERE c.created_at >= date_trunc('month', now()) - interval '1 month'\n                             AND c.created_at < date_trunc('month', now()))) DESC\nLIMIT :limit;"
+  },
+  {
+    "template_id": "CMP_E03",
+    "intent": "category_avg_resolution_time",
+    "question_template": "What is the average resolution time by category (slowest/fastest)?",
+    "retrieval_text": "what is average resolution time by category slowest fastest category speed resolution days",
+    "placeholders": [
+      {
+        "placeholder_name": "limit",
+        "data_type": "INTEGER",
+        "input_mode": "number_input",
+        "required": false,
+        "default_value": 10,
+        "display_order": 1
+      }
+    ],
+    "result_type": "tabular",
+    "is_active": true,
+    "version": 1,
+    "sql_template": "SELECT cat.category_name,\n       ROUND(AVG(EXTRACT(epoch FROM (c.resolved_at - c.created_at))/86400)::numeric, 1) AS avg_days\nFROM complaint c\nJOIN category_master cat ON cat.id = c.category_id\nWHERE c.resolved_at IS NOT NULL\nGROUP BY cat.id, cat.category_name\nORDER BY avg_days DESC\nLIMIT :limit;"
+  },
+  {
+    "template_id": "CMP_F01",
+    "intent": "ward_performance_ranking",
+    "question_template": "Rank all 15 wards by pending complaints or resolution rate.",
+    "retrieval_text": "rank all 15 wards by pending complaints resolution rate league table best worst ward ranking list",
+    "placeholders": [],
+    "result_type": "tabular",
+    "is_active": true,
+    "version": 1,
+    "sql_template": "SELECT w.ward_name, w.ward_name_mar,\n       COUNT(*) AS total,\n       COUNT(*) FILTER (WHERE s.is_terminal = false) AS pending,\n       COUNT(*) FILTER (WHERE s.status_code = 'RESOLVED') AS resolved,\n       ROUND(100.0 * COUNT(*) FILTER (WHERE s.status_code = 'RESOLVED') / NULLIF(COUNT(*), 0), 1) AS resolution_rate\nFROM complaint c\nJOIN status_master s ON s.id = c.status_id\nJOIN ward_master w ON w.id = c.ward_id\nWHERE w.ward_number IS NOT NULL\nGROUP BY w.id, w.ward_name, w.ward_name_mar\nORDER BY resolution_rate DESC;"
+  },
+  {
+    "template_id": "CMP_F02",
+    "intent": "zone_wise_summary",
+    "question_template": "Show zone wise complaint summary breakdown.",
+    "retrieval_text": "show zone wise complaint summary breakdown total pending resolved resolution rate by zone 1 zone 2 zone 3 zone 4 zone 5",
+    "placeholders": [],
+    "result_type": "tabular",
+    "is_active": true,
+    "version": 1,
+    "sql_template": "SELECT z.zone_name, z.zone_name_mar,\n       COUNT(*) AS total,\n       COUNT(*) FILTER (WHERE s.is_terminal = false) AS pending,\n       COUNT(*) FILTER (WHERE s.status_code = 'RESOLVED') AS resolved,\n       ROUND(100.0 * COUNT(*) FILTER (WHERE s.status_code = 'RESOLVED') / NULLIF(COUNT(*), 0), 1) AS resolution_rate\nFROM complaint c\nJOIN status_master s ON s.id = c.status_id\nJOIN zone_master z ON z.id = c.zone_id\nGROUP BY z.id, z.zone_name, z.zone_name_mar\nORDER BY total DESC;"
+  },
+  {
+    "template_id": "CMP_F03",
+    "intent": "ward_head_to_head_comparison",
+    "question_template": "Compare performance of two wards (e.g. Aundh vs Kothrud).",
+    "retrieval_text": "compare performance of two wards aundh vs kothrud compare wards head to head resolution rate pending count",
+    "placeholders": [
+      {
+        "placeholder_name": "ward_1",
+        "data_type": "REFERENCE",
+        "input_mode": "searchable_dropdown",
+        "source_table": "ward_master",
+        "source_id_column": "id",
+        "source_label_column": "ward_name",
+        "required": true,
+        "display_order": 1
+      },
+      {
+        "placeholder_name": "ward_2",
+        "data_type": "REFERENCE",
+        "input_mode": "searchable_dropdown",
+        "source_table": "ward_master",
+        "source_id_column": "id",
+        "source_label_column": "ward_name",
+        "required": true,
+        "display_order": 2
+      }
+    ],
+    "result_type": "tabular",
+    "is_active": true,
+    "version": 1,
+    "sql_template": "SELECT w.ward_name,\n       COUNT(*) AS total,\n       COUNT(*) FILTER (WHERE s.is_terminal = false) AS pending,\n       COUNT(*) FILTER (WHERE s.status_code = 'RESOLVED') AS resolved,\n       ROUND(100.0 * COUNT(*) FILTER (WHERE s.status_code = 'RESOLVED') / NULLIF(COUNT(*), 0), 1) AS resolution_rate\nFROM complaint c\nJOIN status_master s ON s.id = c.status_id\nJOIN ward_master w ON w.id = c.ward_id\nWHERE c.ward_id IN (:ward_1_id, :ward_2_id)\nGROUP BY w.id, w.ward_name;"
+  },
+  {
+    "template_id": "CMP_G01",
+    "intent": "monthly_complaint_trend",
+    "question_template": "Show monthly complaint trend for received vs resolved.",
+    "retrieval_text": "show monthly complaint trend for received vs resolved last 12 months monthly volume breakdown trend dakhva",
+    "placeholders": [
+      {
+        "placeholder_name": "limit",
+        "data_type": "INTEGER",
+        "input_mode": "number_input",
+        "required": false,
+        "default_value": 12,
+        "display_order": 1
+      }
+    ],
+    "result_type": "tabular",
+    "is_active": true,
+    "version": 1,
+    "sql_template": "SELECT date_trunc('month', c.created_at)::date AS month,\n       COUNT(*) AS received,\n       COUNT(*) FILTER (WHERE s.status_code = 'RESOLVED') AS resolved\nFROM complaint c\nJOIN status_master s ON s.id = c.status_id\nGROUP BY 1\nORDER BY 1 DESC\nLIMIT :limit;"
+  },
+  {
+    "template_id": "CMP_G02",
+    "intent": "day_of_week_pattern",
+    "question_template": "Which day of the week gets the most complaints?",
+    "retrieval_text": "which day of the week gets the most complaints daily pattern monday tuesday sunday peak day",
+    "placeholders": [],
+    "result_type": "tabular",
+    "is_active": true,
+    "version": 1,
+    "sql_template": "SELECT to_char(c.created_at, 'Day') AS day_of_week,\n       COUNT(*) AS complaint_count\nFROM complaint c\nGROUP BY day_of_week, EXTRACT(dow FROM c.created_at)\nORDER BY EXTRACT(dow FROM c.created_at);"
+  },
+  {
+    "template_id": "CMP_G03",
+    "intent": "complaint_volume_spikes",
+    "question_template": "Any unusual spike or recent volume surge in complaints?",
+    "retrieval_text": "any unusual spike or recent volume surge in complaints sudden increase last 30 days daily counts",
+    "placeholders": [
+      {
+        "placeholder_name": "limit",
+        "data_type": "INTEGER",
+        "input_mode": "number_input",
+        "required": false,
+        "default_value": 10,
+        "display_order": 1
+      }
+    ],
+    "result_type": "tabular",
+    "is_active": true,
+    "version": 1,
+    "sql_template": "SELECT date_trunc('day', c.created_at)::date AS day,\n       COUNT(*) AS daily_count\nFROM complaint c\nWHERE c.created_at >= now() - interval '30 days'\nGROUP BY 1\nORDER BY daily_count DESC\nLIMIT :limit;"
+  },
+  {
+    "template_id": "CMP_G04",
+    "intent": "daily_complaint_activity_trend",
+    "question_template": "Show daily complaint activity trend for the last {limit} days.",
+    "retrieval_text": "show daily complaint activity trend for last days total received pending resolved count daily breakdown date wise complaints today open complaints daily summary",
+    "placeholders": [
+      {
+        "placeholder_name": "limit",
+        "data_type": "INTEGER",
+        "input_mode": "number_input",
+        "required": false,
+        "default_value": 10,
+        "display_order": 1
+      }
+    ],
+    "result_type": "tabular",
+    "is_active": true,
+    "version": 1,
+    "sql_template": "SELECT\n    c.created_at::date AS complaint_date,\n    COUNT(*) AS total,\n    COUNT(*) FILTER (WHERE s.is_terminal = false) AS pending,\n    COUNT(*) FILTER (WHERE s.status_code = 'RESOLVED') AS resolved\nFROM complaint c\nJOIN status_master s ON s.id = c.status_id\nGROUP BY c.created_at::date\nORDER BY c.created_at::date DESC\nLIMIT :limit;"
+  },
+  {
+    "template_id": "CMP_H01",
+    "intent": "citywide_resolution_stats",
+    "question_template": "How many complaints were resolved citywide and average resolution time?",
+    "retrieval_text": "how many complaints were resolved citywide average resolution time 48 hours same day resolution stats",
+    "placeholders": [],
+    "result_type": "tabular",
+    "is_active": true,
+    "version": 1,
+    "sql_template": "SELECT COUNT(*) AS total_resolved,\n       ROUND(AVG(EXTRACT(epoch FROM (c.resolved_at - c.created_at))/86400)::numeric, 1) AS avg_days,\n       COUNT(*) FILTER (WHERE c.resolved_at - c.created_at <= interval '48 hours') AS resolved_within_48h,\n       COUNT(*) FILTER (WHERE c.resolved_at::date = c.created_at::date) AS same_day_resolved\nFROM complaint c\nWHERE c.resolved_at IS NOT NULL;"
+  },
+  {
+    "template_id": "CMP_H02",
+    "intent": "resolution_time_by_department",
+    "question_template": "Average resolution time department wise.",
+    "retrieval_text": "average resolution time department wise which department resolves fastest slowest speed",
+    "placeholders": [],
+    "result_type": "tabular",
+    "is_active": true,
+    "version": 1,
+    "sql_template": "SELECT d.department_name,\n       COUNT(*) AS total_resolved,\n       ROUND(AVG(EXTRACT(epoch FROM (c.resolved_at - c.created_at))/86400)::numeric, 1) AS avg_days\nFROM complaint c\nJOIN department_master d ON d.id = c.department_id\nWHERE c.resolved_at IS NOT NULL\nGROUP BY d.id, d.department_name\nORDER BY total_resolved DESC;"
+  },
+  {
+    "template_id": "CMP_H03",
+    "intent": "closed_vs_resolved_breakdown",
+    "question_template": "Breakdown of resolved vs citizen-closed vs invalid closed complaints.",
+    "retrieval_text": "breakdown of resolved vs citizen closed vs invalid closed terminal status counts",
+    "placeholders": [],
+    "result_type": "tabular",
+    "is_active": true,
+    "version": 1,
+    "sql_template": "SELECT s.status_name, s.status_code, COUNT(*) AS count\nFROM complaint c\nJOIN status_master s ON s.id = c.status_id\nWHERE s.is_terminal = true\nGROUP BY s.id, s.status_name, s.status_code\nORDER BY count DESC;"
+  },
+  {
+    "template_id": "CMP_I01",
+    "intent": "overall_citizen_satisfaction",
+    "question_template": "What is the average citizen satisfaction rating overall?",
+    "retrieval_text": "what is the average citizen satisfaction rating overall feedback score 1 star 2 star negative feedback count",
+    "placeholders": [],
+    "result_type": "tabular",
+    "is_active": true,
+    "version": 1,
+    "sql_template": "SELECT ROUND(AVG(f.rating)::numeric, 2) AS avg_rating,\n       COUNT(*) AS total_feedback,\n       COUNT(*) FILTER (WHERE f.rating <= 2) AS negative_feedback_count\nFROM complaint_feedback f;"
+  },
+  {
+    "template_id": "CMP_I02",
+    "intent": "satisfaction_rating_by_department",
+    "question_template": "Which department gets the worst or best citizen feedback ratings?",
+    "retrieval_text": "which department gets worst best citizen feedback rating satisfaction score department wise",
+    "placeholders": [],
+    "result_type": "tabular",
+    "is_active": true,
+    "version": 1,
+    "sql_template": "SELECT d.department_name,\n       ROUND(AVG(f.rating)::numeric, 2) AS avg_rating,\n       COUNT(f.id) AS total_feedback\nFROM complaint_feedback f\nJOIN complaint c ON c.id = f.complaint_id\nJOIN department_master d ON d.id = c.department_id\nGROUP BY d.id, d.department_name\nORDER BY avg_rating ASC;"
+  },
+  {
+    "template_id": "CMP_I03",
+    "intent": "recent_negative_feedback_comments",
+    "question_template": "Show recent negative feedback comments with complaint numbers.",
+    "retrieval_text": "show recent negative feedback comments with complaint numbers low rating 1 star 2 star remarks",
+    "placeholders": [
+      {
+        "placeholder_name": "limit",
+        "data_type": "INTEGER",
+        "input_mode": "number_input",
+        "required": false,
+        "default_value": 10,
+        "display_order": 1
+      }
+    ],
+    "result_type": "tabular",
+    "is_active": true,
+    "version": 1,
+    "sql_template": "SELECT c.complaint_number, f.rating, f.comment, f.created_at\nFROM complaint_feedback f\nJOIN complaint c ON c.id = f.complaint_id\nWHERE f.rating <= 2\nORDER BY f.created_at DESC\nLIMIT :limit;"
+  },
+  {
+    "template_id": "CMP_J01",
+    "intent": "city_complaint_hotspots",
+    "question_template": "Show top complaint hotspots in the city (geographic clusters).",
+    "retrieval_text": "show top complaint hotspots in the city geographic clusters location map lat lng density highest complaints area",
+    "placeholders": [
+      {
+        "placeholder_name": "limit",
+        "data_type": "INTEGER",
+        "input_mode": "number_input",
+        "required": false,
+        "default_value": 10,
+        "display_order": 1
+      }
+    ],
+    "result_type": "tabular",
+    "is_active": true,
+    "version": 1,
+    "sql_template": "SELECT ROUND(c.latitude::numeric, 3) AS lat,\n       ROUND(c.longitude::numeric, 3) AS lng,\n       COUNT(*) AS complaint_count,\n       MIN(c.address) AS sample_address\nFROM complaint c\nWHERE c.latitude IS NOT NULL AND c.longitude IS NOT NULL\nGROUP BY 1, 2\nHAVING COUNT(*) >= 5\nORDER BY complaint_count DESC\nLIMIT :limit;"
+  },
+  {
+    "template_id": "CMP_J02",
+    "intent": "repeat_location_complaints",
+    "question_template": "Which locations have repeat complaints of the same type?",
+    "retrieval_text": "which locations have repeat complaints of the same type same spot recurring garbage potholes issues",
+    "placeholders": [
+      {
+        "placeholder_name": "limit",
+        "data_type": "INTEGER",
+        "input_mode": "number_input",
+        "required": false,
+        "default_value": 10,
+        "display_order": 1
+      }
+    ],
+    "result_type": "tabular",
+    "is_active": true,
+    "version": 1,
+    "sql_template": "SELECT ROUND(c.latitude::numeric, 3) AS lat,\n       ROUND(c.longitude::numeric, 3) AS lng,\n       cat.category_name,\n       COUNT(*) AS repeat_count\nFROM complaint c\nJOIN category_master cat ON cat.id = c.category_id\nWHERE c.latitude IS NOT NULL AND c.longitude IS NOT NULL\nGROUP BY 1, 2, cat.category_name\nHAVING COUNT(*) >= 3\nORDER BY repeat_count DESC\nLIMIT :limit;"
+  },
+  {
+    "template_id": "CMP_K01",
+    "intent": "department_full_scorecard",
+    "question_template": "Give me the full scorecard picture of {department}.",
+    "retrieval_text": "give me full picture scorecard of water supply health road drainage solid waste department pending resolved sla workload",
+    "placeholders": [
+      {
+        "placeholder_name": "department",
+        "data_type": "REFERENCE",
+        "input_mode": "searchable_dropdown",
+        "source_table": "department_master",
+        "source_id_column": "id",
+        "source_label_column": "department_name",
+        "required": true,
+        "display_order": 1
+      }
+    ],
+    "result_type": "tabular",
+    "is_active": true,
+    "version": 1,
+    "sql_template": "SELECT d.department_name,\n       COUNT(*) AS total_complaints,\n       COUNT(*) FILTER (WHERE s.is_terminal = false) AS pending,\n       COUNT(*) FILTER (WHERE s.status_code = 'RESOLVED') AS resolved,\n       COUNT(*) FILTER (WHERE c.sla_status = 'BREACHED') AS sla_breached,\n       COUNT(*) FILTER (WHERE c.escalation_level > 0) AS escalated,\n       ROUND(AVG(EXTRACT(epoch FROM (c.resolved_at - c.created_at))/86400)\n             FILTER (WHERE c.resolved_at IS NOT NULL)::numeric, 1) AS avg_days\nFROM complaint c\nJOIN status_master s ON s.id = c.status_id\nJOIN department_master d ON d.id = c.department_id\nWHERE c.department_id = :department_id\nGROUP BY d.id, d.department_name;"
+  },
+  {
+    "template_id": "CMP_K02",
+    "intent": "department_officer_workload_list",
+    "question_template": "Show active officers and workload in {department}.",
+    "retrieval_text": "show active officers and workload open assigned complaints in road water supply department",
+    "placeholders": [
+      {
+        "placeholder_name": "department",
+        "data_type": "REFERENCE",
+        "input_mode": "searchable_dropdown",
+        "source_table": "department_master",
+        "source_id_column": "id",
+        "source_label_column": "department_name",
+        "required": true,
+        "display_order": 1
+      }
+    ],
+    "result_type": "tabular",
+    "is_active": true,
+    "version": 1,
+    "sql_template": "SELECT u.full_name, u.designation,\n       COUNT(c.id) FILTER (WHERE s.is_terminal = false) AS open_assigned\nFROM user_master u\nLEFT JOIN complaint c ON COALESCE(c.assigned_to_id, c.ward_officer_id) = u.id\nLEFT JOIN status_master s ON s.id = c.status_id\nWHERE u.department_id = :department_id AND u.is_active = true\nGROUP BY u.id, u.full_name, u.designation\nORDER BY open_assigned DESC;"
+  },
+  {
+    "template_id": "CMP_L01",
+    "intent": "aging_bucket_breakdown",
+    "question_template": "Show aging bucket breakdown (0-7, 7-30, 30-90, 90+ days).",
+    "retrieval_text": "show aging bucket breakdown 0-7 7-30 30-90 90+ days distribution pending open complaints age",
+    "placeholders": [],
+    "result_type": "tabular",
+    "is_active": true,
+    "version": 1,
+    "sql_template": "SELECT CASE\n         WHEN now() - c.created_at < interval '7 days'  THEN '0-7 days'\n         WHEN now() - c.created_at < interval '30 days' THEN '7-30 days'\n         WHEN now() - c.created_at < interval '90 days' THEN '30-90 days'\n         ELSE '90+ days' END AS age_bucket,\n       COUNT(*) AS pending_count\nFROM complaint c\nJOIN status_master s ON s.id = c.status_id AND s.is_terminal = false\nGROUP BY 1\nORDER BY 1;"
+  },
+  {
+    "template_id": "CMP_L02",
+    "intent": "oldest_open_complaints_list",
+    "question_template": "What are the {limit} oldest open complaints in the city?",
+    "retrieval_text": "what are the oldest open complaints in the city 10 oldest pending complaints list details officer ward",
+    "placeholders": [
+      {
+        "placeholder_name": "limit",
+        "data_type": "INTEGER",
+        "input_mode": "number_input",
+        "required": false,
+        "default_value": 10,
+        "display_order": 1
+      }
+    ],
+    "result_type": "tabular",
+    "is_active": true,
+    "version": 1,
+    "sql_template": "SELECT c.complaint_number, c.title, c.created_at,\n       EXTRACT(day FROM now() - c.created_at) AS age_days,\n       d.department_name, w.ward_name, u.full_name AS assigned_officer, s.status_name\nFROM complaint c\nJOIN status_master s ON s.id = c.status_id AND s.is_terminal = false\nLEFT JOIN department_master d ON d.id = c.department_id\nLEFT JOIN ward_master w ON w.id = c.ward_id\nLEFT JOIN user_master u ON u.id = COALESCE(c.assigned_to_id, c.ward_officer_id)\nORDER BY c.created_at ASC\nLIMIT :limit;"
+  },
+  {
+    "template_id": "CMP_L03",
+    "intent": "complaints_pending_over_days",
+    "question_template": "Show complaints pending for more than 30 or 90 days.",
+    "retrieval_text": "show complaints pending for more than 30 60 90 days older long pending backlog list",
+    "placeholders": [
+      {
+        "placeholder_name": "limit",
+        "data_type": "INTEGER",
+        "input_mode": "number_input",
+        "required": false,
+        "default_value": 10,
+        "display_order": 1
+      }
+    ],
+    "result_type": "tabular",
+    "is_active": true,
+    "version": 1,
+    "sql_template": "SELECT c.complaint_number, c.title, c.created_at,\n       EXTRACT(day FROM now() - c.created_at) AS age_days,\n       d.department_name, w.ward_name\nFROM complaint c\nJOIN status_master s ON s.id = c.status_id AND s.is_terminal = false\nLEFT JOIN department_master d ON d.id = c.department_id\nLEFT JOIN ward_master w ON w.id = c.ward_id\nWHERE c.created_at < now() - interval '30 days'\nORDER BY c.created_at ASC\nLIMIT :limit;"
+  },
+  {
+    "template_id": "CMP_K03",
+    "intent": "department_list_summary",
+    "question_template": "Show list of all PMC departments with complaint counts and resolution rates.",
+    "retrieval_text": "give me the list of departments list all departments show all departments department list sarva vibhaganchi yadi department wise list all departments list",
+    "placeholders": [],
+    "result_type": "tabular",
+    "is_active": true,
+    "version": 1,
+    "sql_template": "SELECT d.id AS department_id,\n       d.department_name,\n       d.department_name_mar,\n       COUNT(c.id) AS total_complaints,\n       COUNT(c.id) FILTER (WHERE s.is_terminal = false) AS pending_complaints,\n       ROUND(100.0 * COUNT(c.id) FILTER (WHERE s.status_code = 'RESOLVED') / NULLIF(COUNT(c.id), 0), 1) AS resolution_rate\nFROM department_master d\nLEFT JOIN complaint c ON c.department_id = d.id\nLEFT JOIN status_master s ON s.id = c.status_id\nGROUP BY d.id, d.department_name, d.department_name_mar\nORDER BY total_complaints DESC;"
+  },
+  {
+    "template_id": "CMP_M01",
+    "intent": "source_channel_breakdown",
+    "question_template": "Show channel wise resolution rate, complaint counts, and comparison across all channels (Call Center, Web, Mobile, Walk-in).",
+    "retrieval_text": "how many complaints came from call center vs web vs mobile vs walk-in swachhata app channel distribution resolution rate konta channel best compare channels channel wise resolution rate sarva channel chi tulna all channels channel comparison चॅनेल तुलना सर्व चॅनेलची तुलना चॅनेल रिझोल्यूशन रेट",
+    "placeholders": [],
+    "result_type": "tabular",
+    "is_active": true,
+    "version": 1,
+    "sql_template": "SELECT c.source_channel,\n       COUNT(*) AS received,\n       COUNT(*) FILTER (WHERE s.status_code = 'RESOLVED') AS resolved,\n       ROUND(100.0 * COUNT(*) FILTER (WHERE s.status_code = 'RESOLVED') / NULLIF(COUNT(*), 0), 1) AS resolution_rate,\n       ROUND(100.0 * COUNT(*) / NULLIF(SUM(COUNT(*)) OVER (), 0), 1) AS share_pct\nFROM complaint c\nJOIN status_master s ON s.id = c.status_id\nGROUP BY c.source_channel\nORDER BY resolution_rate DESC;"
+  },
+  {
+    "template_id": "CMP_M02",
+    "intent": "swachhata_app_complaints",
+    "question_template": "How many complaints synced from Swachhata app?",
+    "retrieval_text": "how many complaints synced from swachhata app external partner total count",
+    "placeholders": [],
+    "result_type": "tabular",
+    "is_active": true,
+    "version": 1,
+    "sql_template": "SELECT COUNT(*) AS total_swachhata_complaints FROM swachhata_complaint;"
+  },
+  {
+    "template_id": "CMP_N01",
+    "intent": "reopened_complaints_by_department",
+    "question_template": "Which department has the highest reopen rate?",
+    "retrieval_text": "which department has the highest reopen rate reopened count citizen reopened poor resolution quality",
+    "placeholders": [],
+    "result_type": "tabular",
+    "is_active": true,
+    "version": 1,
+    "sql_template": "SELECT d.department_name,\n       COUNT(*) FILTER (WHERE c.reopen_count > 0) AS reopened_count,\n       ROUND(100.0 * COUNT(*) FILTER (WHERE c.reopen_count > 0) / NULLIF(COUNT(*), 0), 2) AS reopen_rate\nFROM complaint c\nJOIN department_master d ON d.id = c.department_id\nGROUP BY d.id, d.department_name\nORDER BY reopen_rate DESC;"
+  },
+  {
+    "template_id": "CMP_N02",
+    "intent": "rejected_complaints_reasons",
+    "question_template": "How many complaints were rejected and what are the rejection reasons?",
+    "retrieval_text": "how many complaints were rejected invalid rejection reasons list ward wise closed invalid",
+    "placeholders": [
+      {
+        "placeholder_name": "limit",
+        "data_type": "INTEGER",
+        "input_mode": "number_input",
+        "required": false,
+        "default_value": 10,
+        "display_order": 1
+      }
+    ],
+    "result_type": "tabular",
+    "is_active": true,
+    "version": 1,
+    "sql_template": "SELECT c.complaint_number, w.ward_name, c.resolution_remarks AS rejection_reason\nFROM complaint c\nJOIN status_master s ON s.id = c.status_id AND s.status_code = 'CLOSED_INVALID'\nLEFT JOIN ward_master w ON w.id = c.ward_id\nORDER BY c.updated_at DESC\nLIMIT :limit;"
+  },
+  {
+    "template_id": "CMP_N03",
+    "intent": "duplicate_complaints_count",
+    "question_template": "How many complaints were marked as duplicate?",
+    "retrieval_text": "how many complaints were marked as duplicate count total duplicates parent complaint id",
+    "placeholders": [],
+    "result_type": "tabular",
+    "is_active": true,
+    "version": 1,
+    "sql_template": "SELECT COUNT(*) AS duplicate_count\nFROM complaint\nWHERE is_duplicate = true OR parent_complaint_id IS NOT NULL;"
+  },
+  {
+    "template_id": "CMP_O01",
+    "intent": "officer_workload_ranking",
+    "question_template": "Which officers are overloaded right now (workload score ranking)?",
+    "retrieval_text": "which officers are overloaded right now workload score ranking open pending overdue assigned list",
+    "placeholders": [
+      {
+        "placeholder_name": "limit",
+        "data_type": "INTEGER",
+        "input_mode": "number_input",
+        "required": false,
+        "default_value": 10,
+        "display_order": 1
+      }
+    ],
+    "result_type": "tabular",
+    "is_active": true,
+    "version": 1,
+    "sql_template": "SELECT u.full_name, d.department_name,\n       (COUNT(*) FILTER (WHERE s.status_code IN ('REGISTERED','ASSIGNED','PENDING')) * 1.5 +\n        COUNT(*) FILTER (WHERE s.status_code = 'PROCESSING') * 1.0 +\n        COUNT(*) FILTER (WHERE c.sla_deadline < now() AND s.is_terminal = false) * 3.0) AS workload_score,\n       COUNT(*) FILTER (WHERE s.is_terminal = false) AS open_count\nFROM complaint c\nJOIN status_master s ON s.id = c.status_id\nJOIN user_master u ON u.id = COALESCE(c.assigned_to_id, c.ward_officer_id)\nLEFT JOIN department_master d ON d.id = u.department_id\nGROUP BY u.id, u.full_name, d.department_name\nORDER BY workload_score DESC\nLIMIT :limit;"
+  },
+  {
+    "template_id": "CMP_O02",
+    "intent": "unassigned_complaints_count",
+    "question_template": "How many complaints are unassigned right now by department?",
+    "retrieval_text": "how many complaints are unassigned right now department wise unassigned open count stuck",
+    "placeholders": [],
+    "result_type": "tabular",
+    "is_active": true,
+    "version": 1,
+    "sql_template": "SELECT d.department_name, COUNT(*) AS unassigned_count\nFROM complaint c\nJOIN status_master s ON s.id = c.status_id AND s.is_terminal = false\nLEFT JOIN department_master d ON d.id = c.department_id\nWHERE c.assigned_to_id IS NULL AND c.ward_officer_id IS NULL\nGROUP BY d.department_name\nORDER BY unassigned_count DESC;"
+  },
+  {
+    "template_id": "CMP_O03",
+    "intent": "ward_staffing_coverage_gaps",
+    "question_template": "Show wards where no L1 officer is mapped for a department.",
+    "retrieval_text": "show wards where no l1 officer is mapped for a department coverage gaps staffing shortage",
+    "placeholders": [
+      {
+        "placeholder_name": "limit",
+        "data_type": "INTEGER",
+        "input_mode": "number_input",
+        "required": false,
+        "default_value": 20,
+        "display_order": 1
+      }
+    ],
+    "result_type": "tabular",
+    "is_active": true,
+    "version": 1,
+    "sql_template": "SELECT w.ward_name, d.department_name\nFROM ward_master w\nCROSS JOIN department_master d\nWHERE w.ward_number IS NOT NULL AND d.is_active = true\n  AND NOT EXISTS (\n      SELECT 1 FROM department_ward_officer dwo\n      WHERE dwo.ward_id = w.id AND dwo.department_id = d.id AND dwo.is_active = true\n  )\nLIMIT :limit;"
+  },
+  {
+    "template_id": "CMP_P01",
+    "intent": "specific_complaint_status_card",
+    "question_template": "What is the status of complaint {complaint_number}?",
+    "retrieval_text": "what is the status of complaint cms number full details officer ward category sla remaining escalation level",
+    "placeholders": [
+      {
+        "placeholder_name": "complaint_number",
+        "data_type": "STRING",
+        "input_mode": "text_input",
+        "required": true,
+        "display_order": 1
+      }
+    ],
+    "result_type": "tabular",
+    "is_active": true,
+    "version": 1,
+    "sql_template": "SELECT c.complaint_number, c.title, s.status_name, s.status_name_mar,\n       cat.category_name AS category, d.department_name, w.ward_name,\n       u.full_name AS assigned_officer,\n       c.created_at, c.sla_deadline,\n       GREATEST(c.sla_deadline - now(), interval '0') AS sla_remaining,\n       c.escalation_level, c.reopen_count\nFROM complaint c\nJOIN status_master s ON s.id = c.status_id\nLEFT JOIN category_master cat ON cat.id = c.category_id\nLEFT JOIN department_master d ON d.id = c.department_id\nLEFT JOIN ward_master w ON w.id = c.ward_id\nLEFT JOIN user_master u ON u.id = COALESCE(c.assigned_to_id, c.ward_officer_id)\nWHERE c.complaint_number = :complaint_number;"
+  },
+  {
+    "template_id": "CMP_P02",
+    "intent": "specific_complaint_history_timeline",
+    "question_template": "Show full action history of complaint {complaint_number}.",
+    "retrieval_text": "show full history action history timeline events taken for complaint cms number",
+    "placeholders": [
+      {
+        "placeholder_name": "complaint_number",
+        "data_type": "STRING",
+        "input_mode": "text_input",
+        "required": true,
+        "display_order": 1
+      }
+    ],
+    "result_type": "tabular",
+    "is_active": true,
+    "version": 1,
+    "sql_template": "SELECT h.created_at, h.action_type, h.remarks, u.full_name AS by_officer\nFROM complaint_action_history h\nJOIN complaint c ON c.id = h.complaint_id\nLEFT JOIN user_master u ON u.id = h.performed_by_id\nWHERE c.complaint_number = :complaint_number\nORDER BY h.created_at ASC;"
+  }
+]

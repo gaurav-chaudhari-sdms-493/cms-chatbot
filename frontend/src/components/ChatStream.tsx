@@ -198,6 +198,8 @@ export const ChatStream: React.FC<Props> = ({ messages, loading, questionText, o
                         question: questionText || 'Query Result',
                         markdown_report: msg.content,
                         sql_used: msg.sql_used || '',
+                        template_id: msg.template_id,
+                        candidate_templates: msg.candidate_templates,
                         execution_time_ms: msg.execution_time_ms || 0,
                         retry_count: 0,
                         status: 'SUCCESS'

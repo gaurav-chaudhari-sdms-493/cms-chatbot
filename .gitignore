@@ -43,3 +43,4 @@ yarn-error.log*
 app_metadata.db
 
 backend/.env
+.git_backup/

@@ -51,6 +51,11 @@ class QueryExecutor:
         # 4. Bind parameters securely using SQLAlchemy text()
         sql_stmt = text(template.sql_template)
 
+        # Ensure all bind parameters expected by sql_stmt exist in normalized_params
+        for bp_name in sql_stmt._bindparams.keys():
+            if bp_name not in normalized_params:
+                normalized_params[bp_name] = None
+
         # Set statement timeout on postgres connection
         pmc_session.execute(text(f"SET statement_timeout = '{timeout_sec}s';"))
 

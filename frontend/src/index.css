@@ -134,7 +134,7 @@ body {
 
 .search-input {
   flex: 1;
-  background: rgba(15, 23, 42, 0.8);
+  background: var(--input-bg);
   border: 1px solid var(--border-color);
   border-radius: 12px;
   padding: 16px 20px;
@@ -174,8 +174,8 @@ body {
 }
 
 .prompt-pill {
-  background: rgba(255, 255, 255, 0.05);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: var(--bg-card-hover);
+  border: 1px solid var(--border-color);
   color: var(--text-secondary);
   padding: 6px 12px;
   border-radius: 8px;
@@ -187,7 +187,7 @@ body {
 .prompt-pill:hover {
   background: rgba(59, 130, 246, 0.15);
   border-color: var(--accent-blue);
-  color: #93c5fd;
+  color: var(--accent-blue);
 }
 
 /* Cards Grid */
@@ -199,13 +199,14 @@ body {
 }
 
 .card-suggestion {
-  background: rgba(15, 23, 42, 0.6);
+  background: var(--bg-card);
   border: 1px solid var(--border-color);
   border-radius: 12px;
   padding: 20px;
   cursor: pointer;
   transition: all 0.2s ease;
   position: relative;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.04);
 }
 
 .card-suggestion:hover {
@@ -220,12 +221,17 @@ body {
 }
 
 .score-tag {
-  background: rgba(59, 130, 246, 0.15);
-  color: #60a5fa;
+  background: rgba(37, 99, 235, 0.1);
+  color: var(--accent-blue);
   font-size: 12px;
   font-weight: 700;
   padding: 4px 8px;
   border-radius: 6px;
+}
+
+[data-theme="dark"] .score-tag {
+  background: rgba(59, 130, 246, 0.2);
+  color: #60a5fa;
 }
 
 .template-title {
@@ -239,13 +245,19 @@ body {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  background: rgba(16, 185, 129, 0.15);
-  color: #34d399;
+  background: rgba(5, 150, 105, 0.1);
+  color: var(--accent-emerald);
   font-size: 12px;
+  font-weight: 600;
   padding: 4px 10px;
   border-radius: 6px;
   margin-top: 8px;
   margin-right: 6px;
+}
+
+[data-theme="dark"] .detected-badge {
+  background: rgba(16, 185, 129, 0.2);
+  color: #34d399;
 }
 
 /* Table */
@@ -262,15 +274,16 @@ body {
 }
 
 .data-table th {
-  background: rgba(15, 23, 42, 0.9);
-  color: var(--text-secondary);
+  background: var(--bg-card-hover);
+  color: var(--text-primary);
   font-size: 12px;
+  font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.05em;
 }
 
 .data-table tr:hover td {
-  background: rgba(255, 255, 255, 0.02);
+  background: var(--bg-card-hover);
 }
 
 /* Dynamic Controls */
@@ -288,7 +301,7 @@ body {
 
 .form-select, .form-input {
   width: 100%;
-  background: rgba(15, 23, 42, 0.9);
+  background: var(--input-bg);
   border: 1px solid var(--border-color);
   border-radius: 8px;
   padding: 10px 14px;

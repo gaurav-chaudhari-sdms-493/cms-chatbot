@@ -166,6 +166,7 @@ class ChatMessage(Base):
     sender = Column(String(20), nullable=False)  # 'user' or 'agent'
     content = Column(Text, nullable=False)
     sql_used = Column(Text, nullable=True)
+    template_id = Column(String(50), nullable=True)
     execution_time_ms = Column(Float, nullable=True)
     created_at = Column(
         DateTime(timezone=True),
