@@ -128,8 +128,7 @@ class EntityResolver:
             "category_master",
             "sub_category_master",
             "status_master",
-            "zone_master",
-            "prabhag_master"
+            "zone_master"
         }
         if source_table not in approved_tables:
             return None

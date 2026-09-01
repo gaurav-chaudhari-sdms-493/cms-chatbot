@@ -6,6 +6,7 @@ from typing import Optional, List, Dict, Any
 from fastapi import APIRouter, HTTPException, Depends
 from pydantic import BaseModel, Field
 from sqlalchemy import text
+from sqlalchemy.orm import Session
 from google import genai
 from dotenv import load_dotenv
 
@@ -62,108 +63,24 @@ def execute_sql_query(sql_query: str):
 
 
 from app.db.dynamic_schema import fetch_live_database_schema
-from app.api.llm_client import call_gemini_with_key_rotation, execute_fastmcp_agent_loop
+from app.db.session import get_metadata_db
+from app.agents import MasterOrchestratorAgent
 
 @router.post("/agent", response_model=AgentQueryResponse)
-def execute_agent_query(req: AgentQueryRequest):
-    start_time = time.time()
-    
-    live_schema_context = fetch_live_database_schema()
-    
-    sql_used = ""
-    columns = []
-    rows = []
-    retry_count = 0
-    execution_success = False
-    last_error_msg = ""
-    is_quota_error = False
+def execute_agent_query(req: AgentQueryRequest, db: Session = Depends(get_metadata_db)):
+    res = MasterOrchestratorAgent.process_query(
+        query_text=req.question,
+        metadata_session=db,
+        max_retries=req.max_retries or 3
+    )
 
-    try:
-        sql_used, columns, rows, steps_taken = execute_fastmcp_agent_loop(live_schema_context, req.question, max_steps=req.max_retries + 2)
-        if sql_used and len(rows) > 0:
-            execution_success = True
-            retry_count = steps_taken - 1
-    except Exception as e:
-        logger.error(f"FastMCP Agent Query Error: {e}")
-        last_error_msg = str(e)
+    return AgentQueryResponse(
+        question=req.question,
+        markdown_report=res.get("content", ""),
+        sql_used=res.get("sql_used") or "-- No SQL used",
+        execution_time_ms=res.get("execution_time_ms", 0.0),
+        retry_count=res.get("retry_count", 0),
+        status="SUCCESS" if res.get("status") in ["SUCCESS", "REFUSED", "FOLLOW_UP"] else "FAILED"
+    )
 
-
-
-
-    execution_time_ms = round((time.time() - start_time) * 1000, 2)
-
-    # Synthesis Stage: Generate formatted Markdown Report
-    if execution_success:
-        synthesis_prompt = f"""
-You are the PMC Grievance Intelligence AI Assistant for Pune Municipal Corporation.
-Format a beautiful, highly polished, executive-ready Markdown report card to answer the officer's question based on the verified database output.
-
-Officer Question: {req.question}
-SQL Executed:
-```sql
-{sql_used}
-```
-
-Database Output (Columns: {columns}):
-{rows[:100]} (Total Rows Returned: {len(rows)})
-
-CRITICAL EXECUTIVE FORMATTING RULES:
-1. Provide a clean Header (# Title) and Executive Summary section.
-2. ALL TABLES MUST BE STRICTLY FORMATTED AS GITHUB-FLAVORED MARKDOWN TABLES WITH PIPES '|' AND HEADER DIVIDER BARS '| --- | --- |'.
-   Example Table Syntax:
-   | Status Name | Complaint Count | Percentage (%) |
-   | :--- | :---: | :---: |
-   | ✅ Resolved | **21,736** | **78.9%** |
-   | ❌ Closed - Not Valid | **4,557** | **16.5%** |
-
-3. Format all numbers with commas (e.g. `21,736` instead of `21736`, `4,557` instead of `4557`).
-4. Highlight key totals, summary metrics, and insights in blockquotes `>` or bold badges (e.g. **`21,736`**).
-5. Include relevant emoji indicators to make the report visually engaging and executive-ready.
-"""
-
-        try:
-            markdown_report, _ = call_gemini_with_key_rotation(synthesis_prompt)
-        except Exception:
-            markdown_report = f"# Query Analysis Report\n\n**Question:** {req.question}\n\n**Total Records Found:** {len(rows)}\n"
-
-        return AgentQueryResponse(
-            question=req.question,
-            markdown_report=markdown_report,
-            sql_used=sql_used,
-            execution_time_ms=execution_time_ms,
-            retry_count=retry_count,
-            status="SUCCESS"
-        )
-
-    else:
-        if is_quota_error or "429" in last_error_msg or "RESOURCE_EXHAUSTED" in last_error_msg:
-            fallback_report = (
-                "# ⚠️ Gemini AI Rate Limit Reached (429 Quota Exceeded)\n\n"
-                "The Gemini API rate limit / free tier daily quota has been temporarily reached.\n\n"
-                "> 💡 **Recommended Quick Action:**\n"
-                "> Switch to **⚡ Structural Template Mode** at the top of the screen for **instant 10ms query execution** backed by PMC database indexes.\n\n"
-                "```text\nError Details: 429 RESOURCE_EXHAUSTED - API Rate Limit\n```"
-            )
-        else:
-            fallback_report = f"""# ⚠️ Query Resolution Notice
-
-The AI Data Agent was unable to resolve the database query after {req.max_retries} verification attempts.
-
-### Last Execution Error:
-```text
-{last_error_msg}
-```
-
-### Suggestions for Officer:
-1. Rephrase your question with specific terms (e.g. *"Show complaints in Aundh ward for July 2026"*).
-2. Switch to **⚡ Structural Template Mode** for canonical queries.
-"""
-        return AgentQueryResponse(
-            question=req.question,
-            markdown_report=fallback_report,
-            sql_used=sql_used or "-- No valid SQL generated",
-            execution_time_ms=execution_time_ms,
-            retry_count=req.max_retries,
-            status="FAILED"
-        )
 

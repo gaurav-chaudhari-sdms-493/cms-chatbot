@@ -67,7 +67,6 @@ def call_openrouter_api(contents: Union[str, List[Dict[str, Any]]], models: Opti
         raise ValueError("OPENROUTER_API_KEY is not configured in .env file.")
 
     model_candidates = models or [
-        "google/gemini-2.5-flash",
         "meta-llama/llama-3.3-70b-instruct",
         "qwen/qwen-2.5-coder-32b-instruct",
         "meta-llama/llama-3.1-8b-instruct"
@@ -113,18 +112,6 @@ def call_openrouter_api(contents: Union[str, List[Dict[str, Any]]], models: Opti
 
     return None
 
-def call_gemini_with_key_rotation(contents: str, models: Optional[List[str]] = None) -> tuple[str, str]:
-    """
-    Standard OpenRouter LLM interface. Calls OpenRouter API and returns (response_text, provider_info).
-    """
-    msg = call_openrouter_api(contents, models)
-    if msg and isinstance(msg, dict):
-        content = msg.get("content") or ""
-        if content.strip():
-            return content, "OpenRouter Enterprise API"
-    
-    raise RuntimeError("OpenRouter API request failed across all candidate models.")
-
 
 def execute_fastmcp_agent_loop(schema_context: str, question: str, max_steps: int = 5, history_context: str = "") -> tuple[str, list, list, int]:
     """
@@ -151,7 +138,7 @@ def execute_fastmcp_agent_loop(schema_context: str, question: str, max_steps: in
     ]
 
 
-    tool_models = ["google/gemini-2.5-flash", "meta-llama/llama-3.3-70b-instruct", "openai/gpt-4o-mini"]
+    tool_models = ["meta-llama/llama-3.3-70b-instruct"]
 
     sql_used = ""
     columns = []

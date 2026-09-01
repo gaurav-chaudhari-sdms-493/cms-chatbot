@@ -20,54 +20,20 @@ MARATHI_INDICATORS = [
 ]
 
 
+from app.agents.scope_agent import ScopeAgent
+from app.agents.orchestrator_agent import MasterOrchestratorAgent
+
+
 class ScopeAnswerEngine:
-    """Template-based answering engine for PMC Commissioner Scope Categories A–P."""
+    """Legacy facade wrapping MasterOrchestratorAgent & ScopeAgent."""
 
     @staticmethod
     def is_marathi_query(query_text: str) -> bool:
-        """Detects if query is in Marathi (Devanagari or Marathlish)."""
-        q_lower = query_text.lower()
-        return any(ind in q_lower or ind in query_text for ind in MARATHI_INDICATORS)
+        return ScopeAgent.is_marathi_query(query_text)
 
     @staticmethod
     def check_out_of_scope(query_text: str) -> Optional[str]:
-        """Detects out-of-scope requests and returns a polite refusal message."""
-        q_lower = query_text.lower()
-
-        # 1. Data Modification attempts (DO NOT block read-only status queries like "what is the status of complaint")
-        mod_keywords = [
-            "transfer complaint", "reassign complaint", "delete complaint", "delete ticket",
-            "change status to", "update status to", "mark as resolved", "mark as closed",
-            "suspend officer", "fire officer", "cancel complaint"
-        ]
-        if any(kw in q_lower for kw in mod_keywords):
-            return (
-                "# ⚠️ Action Not Allowed (Read-Only Mode)\n\n"
-                "> [!IMPORTANT]\n"
-                "> I am a **read-only grievance analytics assistant** for PMC senior leadership. "
-                "I cannot modify data, transfer complaints, close tickets, or initiate HR actions.\n\n"
-                "Please use the official PMC CMS administrative workflow portal to perform status updates or reassignments."
-            )
-
-        # 2. HR & Payroll queries
-        hr_keywords = ["salary", "payroll", "disciplinary", "suspend officer", "fire officer", "fire him", "fire her", "terminate officer"]
-        if any(kw in q_lower for kw in hr_keywords):
-            return (
-                "# ⚠️ Out of Scope (HR / Payroll)\n\n"
-                "> \n"
-                "> Officer payroll, personal HR records, and disciplinary proceedings are **outside the scope** of PMC grievance intelligence analytics."
-            )
-
-        # 3. Non-PMC General Knowledge / Politics
-        general_keywords = ["election", "political", "politics", "weather", "cricket score", "who is the prime minister", "tell me a joke", "who will win"]
-        if any(kw in q_lower for kw in general_keywords):
-            return (
-                "# ⚠️ Out of Scope Query\n\n"
-                "> \n"
-                "> This AI chatbot is strictly dedicated to **Pune Municipal Corporation (PMC) Grievance Management, Officer Performance, and Zonal Intelligence Analytics**."
-            )
-
-        return None
+        return ScopeAgent.check_out_of_scope(query_text)
 
     @classmethod
     def answer_scope_query(
@@ -77,29 +43,22 @@ class ScopeAnswerEngine:
         pmc_session: Session,
         session_history: Optional[List[Dict[str, Any]]] = None
     ) -> Optional[Dict[str, Any]]:
-        """
-        Attempts to answer query using OpenRouter RRF hybrid retrieval over Categories A–P.
-        Supports multi-turn follow-up questions, entity binding, and out-of-scope refusal.
-        """
-        # 1. Quick check for explicit Out-of-Scope
-        refusal_msg = cls.check_out_of_scope(query_text)
-        if refusal_msg:
-            return {
-                "status": "REFUSED",
-                "content": refusal_msg,
-                "sql_used": None,
-                "template_id": None
-            }
-
-        # 2. Hybrid RRF Retrieval (E5 Dense Vector + Lexical BM25)
-        candidate_tuples = HybridTemplateRetriever.get_top_candidates(
+        res = MasterOrchestratorAgent.process_query(
             query_text=query_text,
             metadata_session=metadata_session,
-            top_k=5
+            session_history=session_history
         )
+        if res.get("status") in ["SUCCESS", "REFUSED", "FOLLOW_UP"]:
+            return {
+                "status": res.get("status"),
+                "content": res.get("content"),
+                "sql_used": res.get("sql_used"),
+                "template_id": res.get("template_id"),
+                "candidate_templates": res.get("candidate_templates"),
+                "execution_time_ms": res.get("execution_time_ms")
+            }
+        return None
 
-        if not candidate_tuples:
-            return None
 
         candidate_templates = [tpl for tpl, _ in candidate_tuples]
         candidate_details = [
