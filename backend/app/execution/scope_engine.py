@@ -9,6 +9,7 @@ from app.execution.executor import QueryExecutor
 
 from app.execution.retriever import HybridTemplateRetriever
 from app.execution.llm_selector import OpenRouterTemplateSelector
+from app.db.models import UnmatchedScopeQueryLog
 
 logger = logging.getLogger("pmc_chatbot.scope_engine")
 
@@ -33,9 +34,13 @@ class ScopeAnswerEngine:
         """Detects out-of-scope requests and returns a polite refusal message."""
         q_lower = query_text.lower()
 
-        # 1. Data Modification attempts
-        mod_keywords = ["transfer", "reassign", "close", "delete", "update status", "change status", "assign to", "mark as resolved", "suspend"]
-        if any(kw in q_lower for kw in mod_keywords) and any(verb in q_lower for verb in ["complaint", "ticket", "officer", "this", "to", "roads", "dept"]):
+        # 1. Data Modification attempts (DO NOT block read-only status queries like "what is the status of complaint")
+        mod_keywords = [
+            "transfer complaint", "reassign complaint", "delete complaint", "delete ticket",
+            "change status to", "update status to", "mark as resolved", "mark as closed",
+            "suspend officer", "fire officer", "cancel complaint"
+        ]
+        if any(kw in q_lower for kw in mod_keywords):
             return (
                 "# ⚠️ Action Not Allowed (Read-Only Mode)\n\n"
                 "> [!IMPORTANT]\n"
@@ -49,7 +54,7 @@ class ScopeAnswerEngine:
         if any(kw in q_lower for kw in hr_keywords):
             return (
                 "# ⚠️ Out of Scope (HR / Payroll)\n\n"
-                "> [!NOTE]\n"
+                "> \n"
                 "> Officer payroll, personal HR records, and disciplinary proceedings are **outside the scope** of PMC grievance intelligence analytics."
             )
 
@@ -57,8 +62,8 @@ class ScopeAnswerEngine:
         general_keywords = ["election", "political", "politics", "weather", "cricket score", "who is the prime minister", "tell me a joke", "who will win"]
         if any(kw in q_lower for kw in general_keywords):
             return (
-                "# ℹ️ Out of Scope Query\n\n"
-                "> [!NOTE]\n"
+                "# ⚠️ Out of Scope Query\n\n"
+                "> \n"
                 "> This AI chatbot is strictly dedicated to **Pune Municipal Corporation (PMC) Grievance Management, Officer Performance, and Zonal Intelligence Analytics**."
             )
 
@@ -117,9 +122,25 @@ class ScopeAnswerEngine:
 
         status = llm_eval.get("status", "EXECUTE")
 
-        # Handle Out-of-Scope refusal
+        # Handle Out-of-Scope refusal & log for scope expansion backlog
         if status == "OUT_OF_SCOPE":
             reason = llm_eval.get("out_of_scope_reason") or "Query is outside PMC read-only grievance query scope."
+            
+            # Log valid PMC query that couldn't be matched to existing templates for developers to review
+            try:
+                cand_ids = [t.get("template_id") for t in candidate_details if isinstance(t, dict)]
+                unmatched_log = UnmatchedScopeQueryLog(
+                    query_text=query_text,
+                    reason=reason,
+                    candidate_template_ids=cand_ids
+                )
+                metadata_session.add(unmatched_log)
+                metadata_session.commit()
+                logger.info(f"Logged unmatched PMC scope query ID #{unmatched_log.id}: '{query_text}'")
+            except Exception as e:
+                metadata_session.rollback()
+                logger.warning(f"Could not log unmatched query: {e}")
+
             return {
                 "status": "REFUSED",
                 "content": f"# ℹ️ Out of Scope Query\n\n> [!NOTE]\n> {reason}",
@@ -199,50 +220,80 @@ class ScopeAnswerEngine:
 
         lines = []
 
-        # 1. Headline Number Callout
-        first_row = data[0]
-        primary_val = None
-        for val in first_row.values():
-            if isinstance(val, (int, float)):
-                primary_val = val
-                break
-
-        if primary_val is not None:
-            formatted_num = f"{primary_val:,}"
-            if is_marathi:
-                lines.append(f"### 📊 एकूण/मुख्य संख्या: **{formatted_num}**\n")
-            else:
-                lines.append(f"### 📊 Key Summary Metric: **{formatted_num}**\n")
-
-        # 2. Markdown Table Formatting
         # Filter out _mar columns from header display if duplicate
         display_cols = [c for c in columns if not c.endswith("_mar")]
         if not display_cols:
             display_cols = columns
 
+        # Identify numeric count columns & calculate actual total sum
+        count_cols = [
+            c for c in display_cols
+            if any(k in c.lower() for k in ['received', 'total', 'count', 'pending', 'resolved', 'assigned', 'breached', 'open', 'complaints'])
+        ]
+        primary_num_col = count_cols[0] if count_cols else None
+
+        if primary_num_col:
+            total_sum = sum(
+                row.get(primary_num_col, 0)
+                for row in data
+                if isinstance(row.get(primary_num_col), (int, float))
+            )
+            formatted_num = f"{total_sum:,}"
+            num_label = primary_num_col.replace("_", " ").title()
+            if is_marathi:
+                lines.append(f"### 📊 एकूण {num_label}: **{formatted_num}**\n")
+            else:
+                lines.append(f"### 📊 Total {num_label}: **{formatted_num}**\n")
+
+        # 2. Markdown Table Formatting
         headers = " | ".join([c.replace("_", " ").title() for c in display_cols])
         divider = " | ".join(["---"] * len(display_cols))
         lines.append(f"| {headers} |")
         lines.append(f"| {divider} |")
 
-        for row in data[:25]:  # limit to top 25 rows for concise view
+        for row in data:
             row_vals = []
             for c in display_cols:
                 v = row.get(c, "")
                 if isinstance(v, (int, float)):
                     row_vals.append(f"{v:,}")
                 else:
-                    row_vals.append(str(v or ""))
+                    # Clean string values: strip newlines, carriage returns, and replace unescaped pipes
+                    v_str = str(v or "").replace("\r\n", " ").replace("\n", " ").replace("\r", " ").replace("|", "╱").strip()
+                    row_vals.append(v_str if v_str else "-")
             lines.append("| " + " | ".join(row_vals) + " |")
 
         lines.append("\n---")
 
-        # 3. 1-Line Executive Insight
-        top_name = str(first_row.get(display_cols[0], "Primary Category/Ward"))
-        if is_marathi:
-            lines.append(f"> 💡 **कार्यकारी निष्कर्ष:** सर्वात जास्त प्रमाण **{top_name}** मध्ये नोंदवले गेले आहे.\n")
-        else:
-            lines.append(f"> 💡 **Executive Insight:** Highest volume/metric recorded under **{top_name}**.\n")
+        # 3. Accurate Executive Insight
+        # Find non-numeric, non-date dimension column for grouping insight
+        dim_cols = [
+            c for c in display_cols
+            if not any(k in c.lower() for k in ['month', 'date', 'time', 'year', 'created', 'id', 'pct', 'rate', 'percentage'])
+            and not isinstance(data[0].get(c), (int, float))
+        ]
+
+        if primary_num_col and data:
+            max_row = max(data, key=lambda r: (r.get(primary_num_col) or 0) if isinstance(r.get(primary_num_col), (int, float)) else 0)
+            max_val = max_row.get(primary_num_col)
+
+            if dim_cols:
+                top_dim_col = dim_cols[0]
+                top_name = str(max_row.get(top_dim_col, "-"))
+                if top_name and top_name != "-":
+                    if is_marathi:
+                        lines.append(f"> 💡 **कार्यकारी निष्कर्ष:** सर्वात जास्त प्रमाण **{top_name}** ({max_val:,} तक्रारी) मध्ये नोंदवले गेले आहे.\n")
+                    else:
+                        lines.append(f"> 💡 **Executive Insight:** Highest volume recorded under **{top_name}** ({max_val:,} complaints).\n")
+            else:
+                # Time series / Date dimension only
+                date_col = [c for c in display_cols if any(k in c.lower() for k in ['month', 'date', 'year'])][0] if any(any(k in c.lower() for k in ['month', 'date', 'year']) for c in display_cols) else None
+                if date_col:
+                    top_date = str(max_row.get(date_col, "-"))
+                    if is_marathi:
+                        lines.append(f"> 💡 **कार्यकारी निष्कर्ष:** सर्वात जास्त प्रमाण **{top_date}** ({max_val:,} तक्रारी) दरम्यान नोंदवले गेले आहे.\n")
+                    else:
+                        lines.append(f"> 💡 **Executive Insight:** Highest volume recorded in period **{top_date}** ({max_val:,} complaints).\n")
 
         # 4. Attach legacy data caveat for resolution time queries
         if "resolution" in template_intent or "days" in template_intent or "time" in template_intent:

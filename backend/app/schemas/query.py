@@ -58,6 +58,7 @@ class QueryTemplateCreate(BaseModel):
     sql_template: str = Field(..., example="SELECT COUNT(*) FROM complaint_master WHERE department_id = :department_id AND ward_id = :ward_id")
     result_type: str = "tabular"
     is_active: bool = True
+    is_verified: bool = True
     version: int = 1
     placeholders: List[PlaceholderConfigPayload] = []
 
@@ -69,6 +70,7 @@ class QueryTemplateUpdate(BaseModel):
     sql_template: Optional[str] = None
     result_type: Optional[str] = None
     is_active: Optional[bool] = None
+    is_verified: Optional[bool] = None
     version: Optional[int] = None
     placeholders: Optional[List[PlaceholderConfigPayload]] = None
 
@@ -81,6 +83,7 @@ class QueryTemplateDetailResponse(BaseModel):
     sql_template: str
     result_type: str
     is_active: bool
+    is_verified: bool
     version: int
     has_embedding: bool
     placeholders: List[PlaceholderMetadataDTO]

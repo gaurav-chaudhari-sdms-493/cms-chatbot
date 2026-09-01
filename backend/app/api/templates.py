@@ -2,7 +2,7 @@ from typing import List, Optional
 from fastapi import APIRouter, HTTPException, Query, Depends
 from sqlalchemy.orm import Session
 from app.db.session import get_metadata_session
-from app.db.models import QueryTemplate, QueryTemplatePlaceholder
+from app.db.models import QueryTemplate, QueryTemplatePlaceholder, UnmatchedScopeQueryLog
 from app.schemas.query import (
     QueryTemplateCreate,
     QueryTemplateUpdate,
@@ -37,6 +37,7 @@ def _format_template_response(template: QueryTemplate) -> dict:
         "sql_template": template.sql_template,
         "result_type": template.result_type,
         "is_active": template.is_active,
+        "is_verified": getattr(template, "is_verified", True),
         "version": template.version,
         "has_embedding": bool(template.embedding),
         "placeholders": placeholders
@@ -45,11 +46,16 @@ def _format_template_response(template: QueryTemplate) -> dict:
 
 @router.get("/templates", response_model=List[QueryTemplateDetailResponse])
 @router.get("/admin/templates", response_model=List[QueryTemplateDetailResponse])
-def list_templates(q: Optional[str] = Query(None, description="Search term for template ID, intent, or question")):
+def list_templates(
+    q: Optional[str] = Query(None, description="Search term for template ID, intent, or question"),
+    is_verified: Optional[bool] = Query(None, description="Filter by verified or unverified status")
+):
     """List all query templates in the metadata database."""
     session: Session = get_metadata_session()
     try:
         query = session.query(QueryTemplate)
+        if is_verified is not None:
+            query = query.filter(QueryTemplate.is_verified == is_verified)
         if q:
             search_pattern = f"%{q.strip()}%"
             query = query.filter(
@@ -104,6 +110,7 @@ def create_template(payload: QueryTemplateCreate):
             sql_template=payload.sql_template.strip(),
             result_type=payload.result_type,
             is_active=payload.is_active,
+            is_verified=payload.is_verified,
             version=payload.version,
             embedding=embedding_vector
         )
@@ -162,6 +169,8 @@ def update_template(template_id: str, payload: QueryTemplateUpdate):
             template.result_type = payload.result_type
         if payload.is_active is not None:
             template.is_active = payload.is_active
+        if payload.is_verified is not None:
+            template.is_verified = payload.is_verified
         if payload.version is not None:
             template.version = payload.version
 
@@ -217,3 +226,26 @@ def delete_template(template_id: str):
         raise HTTPException(status_code=500, detail=f"Failed to delete template: {str(err)}")
     finally:
         session.close()
+
+
+@router.get("/unmatched-queries")
+@router.get("/admin/unmatched-queries")
+def list_unmatched_queries(limit: int = 50):
+    """Retrieves logged PMC queries that could not be matched to an existing template (Backlog for scope expansion)."""
+    session: Session = get_metadata_session()
+    try:
+        logs = session.query(UnmatchedScopeQueryLog).order_by(UnmatchedScopeQueryLog.logged_at.desc()).limit(limit).all()
+        return [
+            {
+                "id": log.id,
+                "query_text": log.query_text,
+                "reason": log.reason,
+                "candidate_template_ids": log.candidate_template_ids,
+                "session_id": log.session_id,
+                "logged_at": log.logged_at.isoformat() if log.logged_at else None
+            }
+            for log in logs
+        ]
+    finally:
+        session.close()
+

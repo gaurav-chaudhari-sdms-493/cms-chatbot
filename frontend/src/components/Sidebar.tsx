@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Edit3, Search, MoreHorizontal, Pin, Edit2, Trash2, PanelLeftClose, PanelLeft, Settings, Check, X, MessageSquare } from 'lucide-react';
+import { Edit3, Search, MoreHorizontal, Pin, Edit2, Trash2, PanelLeftClose, PanelLeft, Settings, Check, X, MessageSquare, Download } from 'lucide-react';
 import { ChatSessionDetailResponse } from '../types';
 
 interface SidebarProps {
@@ -105,6 +105,30 @@ export const Sidebar: React.FC<SidebarProps> = ({
       setCustomTitles((prev) => ({ ...prev, [id]: editTitle.trim() }));
     }
     setEditingId(null);
+  };
+
+  const handleExportChat = (session: ChatSessionDetailResponse) => {
+    const title = customTitles[session.id] || session.title;
+    let exportText = `# PMC Analytics Chat Export: ${title}\nSession ID: ${session.id}\nExported At: ${new Date().toLocaleString()}\n\n---\n\n`;
+
+    if (session.messages && session.messages.length > 0) {
+      session.messages.forEach((m) => {
+        exportText += `### ${m.sender === 'user' ? '👤 PMC Officer' : '⚡ PMC Analytics AI Assistant'}\n${m.content}\n\n`;
+      });
+    } else {
+      exportText += `(No chat messages in this session)\n`;
+    }
+
+    const blob = new Blob([exportText], { type: 'text/markdown;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `pmc-chat-export-${session.id.slice(0, 8)}.md`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+    setMenuOpenId(null);
   };
 
   const filteredSessions = sessions.filter((s) => {
@@ -679,6 +703,28 @@ export const Sidebar: React.FC<SidebarProps> = ({
                     >
                       <Pin size={14} color="var(--accent-blue)" />
                       <span>{isPinned ? 'Unpin' : 'Pin'}</span>
+                    </button>
+
+                    <button
+                      onClick={() => handleExportChat(session)}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '8px',
+                        padding: '6px 10px',
+                        fontSize: '13px',
+                        color: 'var(--text-primary)',
+                        background: 'transparent',
+                        border: 'none',
+                        borderRadius: '6px',
+                        cursor: 'pointer',
+                        textAlign: 'left'
+                      }}
+                      onMouseEnter={(e) => (e.currentTarget.style.background = 'var(--bg-card-hover)')}
+                      onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
+                    >
+                      <Download size={14} color="var(--accent-blue)" />
+                      <span>Export Chat</span>
                     </button>
 
                     <button

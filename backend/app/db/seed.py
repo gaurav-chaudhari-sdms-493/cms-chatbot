@@ -31,7 +31,7 @@ EMBEDDING_MODEL_NAME = os.getenv(
 )
 
 
-def seed_database():
+def seed_database(force: bool = False):
     """Create metadata tables, compute embeddings, and seed canonical templates into metadata DB."""
     print(f"Connecting to application metadata database: {METADATA_DATABASE_URL}...")
     engine = create_engine(METADATA_DATABASE_URL, echo=False)
@@ -40,15 +40,21 @@ def seed_database():
     print("Creating application metadata tables if not exists...")
     Base.metadata.create_all(bind=engine)
 
-    # 2. Load embedding model
-    print(f"Loading SentenceTransformers embedding model '{EMBEDDING_MODEL_NAME}'...")
-    from sentence_transformers import SentenceTransformer
-    model = SentenceTransformer(EMBEDDING_MODEL_NAME)
-
     SessionLocal = sessionmaker(bind=engine)
     session = SessionLocal()
 
     try:
+        existing_count = session.query(QueryTemplate).count()
+        if existing_count >= len(CANONICAL_TEMPLATES) and not force:
+            print(f"✓ Metadata database is already seeded ({existing_count}/{len(CANONICAL_TEMPLATES)} canonical templates present). Skipping re-seeding.")
+            print("  (Pass --force to app.db.seed or --force-seed to start.sh to force re-seeding)")
+            return
+
+        # 2. Load embedding model
+        print(f"Loading SentenceTransformers embedding model '{EMBEDDING_MODEL_NAME}'...")
+        from sentence_transformers import SentenceTransformer
+        model = SentenceTransformer(EMBEDDING_MODEL_NAME)
+
         print(f"Seeding {len(CANONICAL_TEMPLATES)} canonical structural templates...")
         for t_data in CANONICAL_TEMPLATES:
             template_id = t_data["template_id"]
@@ -65,6 +71,7 @@ def seed_database():
                 existing.sql_template = t_data["sql_template"]
                 existing.result_type = t_data.get("result_type", "tabular")
                 existing.is_active = t_data.get("is_active", True)
+                existing.is_verified = t_data.get("is_verified", False)
                 existing.version = t_data.get("version", 1)
                 existing.embedding = embedding_vector
                 print(f"  [UPDATED] Template {template_id} ({t_data['intent']})")
@@ -77,6 +84,7 @@ def seed_database():
                     sql_template=t_data["sql_template"],
                     result_type=t_data.get("result_type", "tabular"),
                     is_active=t_data.get("is_active", True),
+                    is_verified=t_data.get("is_verified", False),
                     version=t_data.get("version", 1),
                     embedding=embedding_vector
                 )
@@ -112,4 +120,6 @@ def seed_database():
 
 
 if __name__ == "__main__":
-    seed_database()
+    force_flag = "--force" in sys.argv or "-f" in sys.argv
+    seed_database(force=force_flag)
+

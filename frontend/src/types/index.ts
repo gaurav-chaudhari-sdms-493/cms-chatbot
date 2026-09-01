@@ -47,6 +47,7 @@ export interface AdminQueryTemplate {
   sql_template: string;
   result_type: string;
   is_active: boolean;
+  is_verified: boolean;
   version: number;
   has_embedding: boolean;
   placeholders: PlaceholderMetadata[];
@@ -60,6 +61,7 @@ export interface AdminQueryTemplatePayload {
   sql_template: string;
   result_type: string;
   is_active: boolean;
+  is_verified?: boolean;
   version: number;
   placeholders: PlaceholderMetadata[];
 }

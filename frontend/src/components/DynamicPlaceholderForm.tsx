@@ -100,18 +100,25 @@ export const DynamicPlaceholderForm: React.FC<DynamicPlaceholderFormProps> = ({
 
         {/* Missing Placeholders Input Controls */}
         {suggestion.missing_placeholders.map((p) => (
-          <div key={p.placeholder_name} className="form-group">
-            <label className="form-label">
-              Select {p.placeholder_name} {p.required && <span style={{ color: '#ef4444' }}>*</span>}
-            </label>
+          <div key={p.placeholder_name} className="form-group" style={{ background: 'var(--bg-card-hover)', padding: '16px', borderRadius: '10px', marginBottom: '16px', border: '1px solid var(--border-color)' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+              <label className="form-label" style={{ margin: 0, fontWeight: 600, fontSize: '14px' }}>
+                Follow-up: Provide value for <span style={{ color: 'var(--accent-blue)', fontFamily: 'monospace' }}>{p.placeholder_name}</span> {p.required && <span style={{ color: '#ef4444' }}>*</span>}
+              </label>
+
+              <span style={{ fontSize: '11px', padding: '3px 8px', borderRadius: '12px', fontWeight: 700, background: p.data_type === 'REFERENCE' ? 'rgba(37, 99, 235, 0.15)' : 'rgba(245, 158, 11, 0.15)', color: p.data_type === 'REFERENCE' ? 'var(--accent-blue)' : '#f59e0b' }}>
+                {p.data_type === 'REFERENCE' ? `📋 Picklist (${p.source_table})` : `⌨️ Continuous Input (${p.data_type})`}
+              </span>
+            </div>
 
             {p.data_type === 'REFERENCE' ? (
               <select
                 className="form-select"
                 required={p.required}
                 onChange={(e) => handleSelectChange(p.placeholder_name, e.target.value)}
+                style={{ width: '100%', padding: '10px 14px', borderRadius: '8px', background: 'var(--input-bg)', color: 'var(--text-primary)', border: '1px solid var(--border-color)' }}
               >
-                <option value="">-- Choose {p.placeholder_name} --</option>
+                <option value="">-- Select {p.placeholder_name} from {p.source_table} picklist --</option>
                 {referenceOptions[p.placeholder_name]?.map((opt) => (
                   <option key={opt.id} value={opt.id}>
                     {opt.label} (ID: {opt.id})
@@ -122,16 +129,20 @@ export const DynamicPlaceholderForm: React.FC<DynamicPlaceholderFormProps> = ({
               <input
                 type="number"
                 className="form-input"
+                placeholder={`Type numeric value for ${p.placeholder_name}...`}
                 defaultValue={10}
                 required={p.required}
                 onChange={(e) => handleInputChange(p.placeholder_name, e.target.value)}
+                style={{ width: '100%', padding: '10px 14px', borderRadius: '8px', background: 'var(--input-bg)', color: 'var(--text-primary)', border: '1px solid var(--border-color)' }}
               />
             ) : (
               <input
                 type="text"
                 className="form-input"
+                placeholder={`Type ${p.placeholder_name} value (e.g. CMS20260005678)...`}
                 required={p.required}
                 onChange={(e) => handleInputChange(p.placeholder_name, e.target.value)}
+                style={{ width: '100%', padding: '10px 14px', borderRadius: '8px', background: 'var(--input-bg)', color: 'var(--text-primary)', border: '1px solid var(--border-color)' }}
               />
             )}
           </div>

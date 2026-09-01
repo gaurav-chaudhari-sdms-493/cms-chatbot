@@ -73,22 +73,37 @@ PREVIOUS CHAT HISTORY:
 {history_str if history_str else "None"}
 
 CANDIDATE CANONICAL TEMPLATES:
+
 {json.dumps(templates_summary, indent=2)}
 
 SYSTEM RULES:
-1. ONLY declare "OUT_OF_SCOPE" if the question explicitly asks to modify/delete data (e.g. transfer/reassign ticket, close complaint), initiate HR actions, or non-PMC political trivia.
-2. All analytical, comparison, and reporting queries (e.g. "give me the list of departments", "channel wise resolution rate", "compare channels", "top categories") ARE IN SCOPE. Match them to the candidate template list.
-3. IMPORTANT CANONICAL TEMPLATE MAPPINGS:
-   - Template CMP_M01 handles ALL source channel queries: channel breakdown, channel resolution rates, best channel, channel comparison, and "all channels" / "सर्व चॅनेलची तुलना" requests.
-   - Template CMP_K03 handles general department list queries ("give me the list of departments", "list all departments", "सर्व विभागांची यादी").
-4. If a candidate template has NO required placeholders (like CMP_M01 for channel breakdown or CMP_K03 for department list), set status to "EXECUTE" immediately — DO NOT ask follow-up questions.
-5. Extract parameter values from the officer's question or chat history for required placeholders. Only set status to "NEEDS_FOLLOWUP" if a REQUIRED parameter (e.g. specific ward or officer name) is genuinely missing.
-6. If all required parameters are resolved or template has no required parameters, set status to "EXECUTE".
+1. ONLY declare "OUT_OF_SCOPE" if the question explicitly asks to modify/delete data (e.g. transfer/reassign ticket, close complaint), initiate HR/payroll actions, or non-PMC general trivia (e.g. weather, elections).
+2. ALL PMC municipal grievance analytics, complaint statistics, channel comparisons, officer performance metrics, aging trends, and location/prabhag breakdowns ARE IN SCOPE.
+3. DYNAMIC TEMPLATE SELECTION:
+   - Carefully review the `intent`, `question_pattern`, `retrieval_text`, and `placeholders` for each candidate template in CANDIDATE CANONICAL TEMPLATES.
+   - Select the candidate template ID whose functional scope and intent best match the officer's query.
+   - If a candidate template has no required placeholders or only optional placeholders (e.g., optional department, ward, or limit), set status to "EXECUTE" immediately — DO NOT return "NEEDS_FOLLOWUP" or "OUT_OF_SCOPE" if the candidate template matches.
+4. PARAMETER EXTRACTION:
+   - Extract parameter values from the officer's question AND chat history for required or optional placeholders (e.g., department name, ward name, complaint number, limit, age days).
+   - If the officer does NOT explicitly specify a numeric limit (e.g. "top 5", "top 10", "first 20") in their query, DO NOT set a "limit" parameter — leave "limit" as null so all matching rows are returned without truncation.
+   - If the user provides a specific ticket/complaint ID (e.g. WA32811, CMS20260005678), extract it as "complaint_number" and match to the specific complaint lookup template.
+5. MULTI-TURN & AFFIRMATIVE RESPONSE RESOLUTION:
+   - If previous chat history shows the AI asked a follow-up question and officer responds with affirmative words ("yes", "yeah", "sure", "ok", "proceed", "do it", "show me", "ha", "ho") or an intent phrase ("complaint of this ward", "pending complaints", "show complaints"), YOU MUST set status to "EXECUTE".
+   - Inherit the entity (ward name or department name) from the history into extracted_parameters (e.g. {{"ward": "Hadapsar - Mundhwa"}} or {{"department": "Traffic"}}).
+   - Match to the relevant candidate template for that entity and DO NOT return NEEDS_FOLLOWUP.
+6. ENTITY-ONLY INPUTS:
+   - If the officer inputs ONLY an entity name (e.g., "Hadapsar - Mundhwa" or "Water Supply") without explicit intent, match to the candidate template for pending complaints of that entity, extract the parameter, and set status to "EXECUTE".
+7. MULTILINGUAL & MARATHLISH TERMINOLOGY:
+   - "tasks", "takrari", "kaam", "complaints", "grievances" all refer to PMC complaints.
+   - "yething", "madhye", "chya", "til" are Marathi location prepositional indicators. E.g., "kasba yething completed tasks" means completed/resolved complaints in Kasba ward.
+8. STATUS PLACEHOLDER FLEXIBILITY:
+   - The `status` placeholder in templates (such as CMP_A02) handles ALL complaint statuses including "completed", "resolved", "pending", "open", "escalated", "closed", "assigned", "reopened".
+   - NEVER declare a question "OUT_OF_SCOPE" for asking about completed/resolved/escalated complaints if a template with a `status` placeholder (such as CMP_A02) is present in CANDIDATE CANONICAL TEMPLATES. Select the template (e.g. CMP_A02), extract status (e.g. "completed") and entity (e.g. ward="Kasba"), and set status to "EXECUTE".
 
 Respond strictly with a valid JSON object matching this exact schema:
 {{
   "status": "EXECUTE" | "NEEDS_FOLLOWUP" | "OUT_OF_SCOPE",
-  "selected_template_id": "CMP_M01" (or matching template ID),
+  "selected_template_id": "<ID of selected candidate template>",
   "confidence": 0.95,
   "extracted_parameters": {{"limit": 10}},
   "followup_question": "Which specific department would you like to view?" (only if status is NEEDS_FOLLOWUP),
@@ -115,9 +130,9 @@ Respond strictly with a valid JSON object matching this exact schema:
                 bound_params = {}
                 if pmc_session:
                     for k, v in extracted.items():
-                        if k in ["department", "ward", "zone", "category", "sub_category"]:
+                        if k in ["department", "ward", "zone", "category", "sub_category", "status"]:
                             table_name = f"{k}_master"
-                            label_col = f"{k}_name" if k in ["department", "ward", "category", "zone"] else "name"
+                            label_col = f"{k}_name" if k in ["department", "ward", "category", "zone", "status"] else "name"
                             ref = EntityResolver.resolve_reference(
                                 query_text=str(v),
                                 source_table=table_name,

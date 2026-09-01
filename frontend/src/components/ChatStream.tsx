@@ -206,7 +206,7 @@ export const ChatStream: React.FC<Props> = ({ messages, loading, questionText, o
                     };
                     return (
                         <div key={msg.id} style={{ width: '100%' }}>
-                            <MarkdownReport data={agentResponse} />
+                            <MarkdownReport data={agentResponse} onSelectOption={onSelectExample} />
                         </div>
                     );
                 }

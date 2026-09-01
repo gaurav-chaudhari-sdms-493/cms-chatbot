@@ -266,7 +266,7 @@ export const App: React.FC = () => {
                 {/* Scrollable Content Body */}
                 <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column' }}>
 
-                    <main style={{ flex: 1, maxWidth: '1100px', margin: '0 auto', width: '100%', padding: '24px 24px 0 24px' }}>
+                    <main style={{ flex: 1, maxWidth: '1400px', margin: '0 auto', width: '100%', padding: '24px 24px 0 24px' }}>
                         {activeTab === 'developer' ? (
                             <DeveloperStudio />
                         ) : (

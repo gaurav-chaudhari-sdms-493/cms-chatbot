@@ -21,6 +21,7 @@ cd "$SCRIPT_DIR"
 
 SKIP_DOCKER=false
 SKIP_SEED=false
+FORCE_SEED=false
 
 # Parse arguments
 for arg in "$@"; do
@@ -33,6 +34,10 @@ for arg in "$@"; do
       SKIP_SEED=true
       shift
       ;;
+    --force-seed)
+      FORCE_SEED=true
+      shift
+      ;;
     -h|--help)
       echo -e "${BOLD}PMC Officer Query System Startup Script${NC}"
       echo ""
@@ -40,7 +45,8 @@ for arg in "$@"; do
       echo ""
       echo "Options:"
       echo "  --skip-docker   Skip launching the Docker metadata-db container"
-      echo "  --skip-seed     Skip seeding the template catalog and embeddings"
+      echo "  --skip-seed     Skip database template check and seeding"
+      echo "  --force-seed    Force re-seeding templates and re-computing embeddings"
       echo "  -h, --help      Display this help message"
       exit 0
       ;;
@@ -127,9 +133,13 @@ if [ "$SKIP_SEED" = false ]; then
   echo -e "${CYAN}Running database migrations...${NC}"
   $ALEMBIC_BIN upgrade head || echo -e "${YELLOW}Alembic migration check finished with warnings.${NC}"
 
-  echo -e "${CYAN}Seeding database templates and embedding vectors...${NC}"
-  $PYTHON_BIN -m app.db.seed
-  echo -e "${GREEN}✓ Database seeded.${NC}"
+  echo -e "${CYAN}Checking database templates and embeddings...${NC}"
+  if [ "$FORCE_SEED" = true ]; then
+    $PYTHON_BIN -m app.db.seed --force
+  else
+    $PYTHON_BIN -m app.db.seed
+  fi
+  echo -e "${GREEN}✓ Database check completed.${NC}"
 else
   echo -e "${YELLOW}Skipping database seeding (--skip-seed flag set).${NC}"
 fi

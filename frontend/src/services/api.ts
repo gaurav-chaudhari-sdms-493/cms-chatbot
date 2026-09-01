@@ -169,4 +169,12 @@ export async function sendChatMessage(sessionId: string, content: string): Promi
   return await res.json();
 }
 
+export async function fetchUnmatchedQueries(): Promise<any[]> {
+  const res = await fetch(`${API_BASE_URL}/unmatched-queries`);
+  if (!res.ok) {
+    throw new Error('Failed to fetch unmatched scope queries');
+  }
+  return await res.json();
+}
+
 

@@ -5,12 +5,15 @@ import {
   createAdminTemplate,
   updateAdminTemplate,
   deleteAdminTemplate,
-  executeQueryTemplate
+  executeQueryTemplate,
+  fetchUnmatchedQueries
 } from '../services/api';
 import { ResultTable } from './ResultTable';
 
 export const DeveloperStudio: React.FC = () => {
   const [templates, setTemplates] = useState<AdminQueryTemplate[]>([]);
+  const [activeFolder, setActiveFolder] = useState<'verified' | 'unverified' | 'unmatched'>('unverified');
+  const [unmatchedQueries, setUnmatchedQueries] = useState<any[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
@@ -29,6 +32,7 @@ export const DeveloperStudio: React.FC = () => {
     sql_template: string;
     result_type: string;
     is_active: boolean;
+    is_verified: boolean;
     version: number;
     placeholders: PlaceholderMetadata[];
   }>({
@@ -39,6 +43,7 @@ export const DeveloperStudio: React.FC = () => {
     sql_template: '',
     result_type: 'tabular',
     is_active: true,
+    is_verified: false,
     version: 1,
     placeholders: []
   });
@@ -52,7 +57,44 @@ export const DeveloperStudio: React.FC = () => {
 
   useEffect(() => {
     loadTemplates();
+    loadUnmatchedQueries();
   }, []);
+
+  const loadUnmatchedQueries = async () => {
+    try {
+      const data = await fetchUnmatchedQueries();
+      setUnmatchedQueries(data);
+    } catch (err) {
+      console.error('Failed to load unmatched scope queries', err);
+    }
+  };
+
+  const handleConvertUnmatchedToTemplate = (unmatchedItem: any) => {
+    setEditingTemplate(null);
+    const derivedIntent = unmatchedItem.query_text
+      ? unmatchedItem.query_text
+          .toLowerCase()
+          .replace(/[^a-z0-9\s]/g, '')
+          .trim()
+          .split(/\s+/)
+          .slice(0, 4)
+          .join('_')
+      : 'custom_intent';
+
+    setFormData({
+      template_id: `CMP_${Math.floor(100 + Math.random() * 900)}`,
+      intent: derivedIntent,
+      question_template: unmatchedItem.query_text || '',
+      retrieval_text: (unmatchedItem.query_text || '').toLowerCase(),
+      sql_template: `SELECT c.complaint_number, c.title, c.created_at, d.department_name, w.ward_name\nFROM complaint c\nJOIN department_master d ON d.id = c.department_id\nJOIN ward_master w ON w.id = c.ward_id\nLIMIT 10;`,
+      result_type: 'tabular',
+      is_active: true,
+      is_verified: false,
+      version: 1,
+      placeholders: []
+    });
+    setShowModal(true);
+  };
 
   const loadTemplates = async (search: string = '') => {
     setLoading(true);
@@ -82,6 +124,7 @@ export const DeveloperStudio: React.FC = () => {
       sql_template: '',
       result_type: 'tabular',
       is_active: true,
+      is_verified: activeFolder === 'verified',
       version: 1,
       placeholders: []
     });
@@ -98,6 +141,7 @@ export const DeveloperStudio: React.FC = () => {
       sql_template: template.sql_template,
       result_type: template.result_type,
       is_active: template.is_active,
+      is_verified: template.is_verified ?? true,
       version: template.version,
       placeholders: template.placeholders || []
     });
@@ -115,7 +159,7 @@ export const DeveloperStudio: React.FC = () => {
         setSuccessMsg(`Template '${editingTemplate.template_id}' updated successfully! Vector embedding re-computed.`);
       } else {
         await createAdminTemplate(formData);
-        setSuccessMsg(`New Template '${formData.template_id}' created successfully! Vector embedding computed.`);
+        setSuccessMsg(`New Template '${formData.template_id}' created in ${formData.is_verified ? 'Verified' : 'Un-verified'} folder! Vector embedding computed.`);
       }
       setShowModal(false);
       loadTemplates(searchTerm);
@@ -143,6 +187,17 @@ export const DeveloperStudio: React.FC = () => {
       loadTemplates(searchTerm);
     } catch (err: any) {
       setErrorMsg(err.message || 'Failed to update active status');
+    }
+  };
+
+  const handleToggleVerified = async (template: AdminQueryTemplate) => {
+    try {
+      const newStatus = !template.is_verified;
+      await updateAdminTemplate(template.template_id, { is_verified: newStatus });
+      setSuccessMsg(`Template '${template.template_id}' moved to ${newStatus ? 'Verified' : 'Un-verified'} folder.`);
+      loadTemplates(searchTerm);
+    } catch (err: any) {
+      setErrorMsg(err.message || 'Failed to update verification status');
     }
   };
 
@@ -243,6 +298,105 @@ export const DeveloperStudio: React.FC = () => {
         </button>
       </div>
 
+      {/* Folder Tabs: Verified vs Un-verified */}
+      <div style={{ display: 'flex', gap: '12px', marginTop: '16px', marginBottom: '8px' }}>
+        <button
+          type="button"
+          onClick={() => setActiveFolder('verified')}
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '8px',
+            padding: '10px 18px',
+            borderRadius: '10px',
+            fontWeight: 600,
+            fontSize: '14px',
+            cursor: 'pointer',
+            border: '1px solid',
+            borderColor: activeFolder === 'verified' ? 'var(--accent-blue)' : 'var(--border-color)',
+            background: activeFolder === 'verified' ? 'rgba(37, 99, 235, 0.15)' : 'var(--bg-card)',
+            color: activeFolder === 'verified' ? 'var(--accent-blue)' : 'var(--text-secondary)',
+            transition: 'all 0.2s ease'
+          }}
+        >
+          📁 Verified Templates
+          <span style={{
+            background: activeFolder === 'verified' ? 'var(--accent-blue)' : 'var(--bg-card-hover)',
+            color: activeFolder === 'verified' ? '#fff' : 'var(--text-muted)',
+            padding: '2px 8px',
+            borderRadius: '12px',
+            fontSize: '12px',
+            fontWeight: 700
+          }}>
+            {templates.filter(t => t.is_verified !== false).length}
+          </span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setActiveFolder('unverified')}
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '8px',
+            padding: '10px 18px',
+            borderRadius: '10px',
+            fontWeight: 600,
+            fontSize: '14px',
+            cursor: 'pointer',
+            border: '1px solid',
+            borderColor: activeFolder === 'unverified' ? '#f59e0b' : 'var(--border-color)',
+            background: activeFolder === 'unverified' ? 'rgba(245, 158, 11, 0.15)' : 'var(--bg-card)',
+            color: activeFolder === 'unverified' ? '#f59e0b' : 'var(--text-secondary)',
+            transition: 'all 0.2s ease'
+          }}
+        >
+          📂 Un-verified Templates
+          <span style={{
+            background: activeFolder === 'unverified' ? '#f59e0b' : 'var(--bg-card-hover)',
+            color: activeFolder === 'unverified' ? '#fff' : 'var(--text-muted)',
+            padding: '2px 8px',
+            borderRadius: '12px',
+            fontSize: '12px',
+            fontWeight: 700
+          }}>
+            {templates.filter(t => t.is_verified === false).length}
+          </span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setActiveFolder('unmatched')}
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '8px',
+            padding: '10px 18px',
+            borderRadius: '10px',
+            fontWeight: 600,
+            fontSize: '14px',
+            cursor: 'pointer',
+            border: '1px solid',
+            borderColor: activeFolder === 'unmatched' ? '#ec4899' : 'var(--border-color)',
+            background: activeFolder === 'unmatched' ? 'rgba(236, 72, 153, 0.15)' : 'var(--bg-card)',
+            color: activeFolder === 'unmatched' ? '#ec4899' : 'var(--text-secondary)',
+            transition: 'all 0.2s ease'
+          }}
+        >
+          📥 Scope Backlog (Unmatched)
+          <span style={{
+            background: activeFolder === 'unmatched' ? '#ec4899' : 'var(--bg-card-hover)',
+            color: activeFolder === 'unmatched' ? '#fff' : 'var(--text-muted)',
+            padding: '2px 8px',
+            borderRadius: '12px',
+            fontSize: '12px',
+            fontWeight: 700
+          }}>
+            {unmatchedQueries.length}
+          </span>
+        </button>
+      </div>
+
       {/* Notifications */}
       {errorMsg && (
         <div className="glass-panel" style={{ borderColor: 'rgba(239, 68, 68, 0.4)', background: 'rgba(239, 68, 68, 0.1)', color: '#f87171', marginTop: '16px' }}>
@@ -256,60 +410,128 @@ export const DeveloperStudio: React.FC = () => {
       )}
 
       {/* Search & Filter */}
-      <form onSubmit={handleSearchSubmit} style={{ margin: '20px 0', display: 'flex', gap: '12px' }}>
-        <input
-          type="text"
-          placeholder="Search by Template ID, Intent, or Question..."
-          value={searchTerm}
-          onChange={(e) => setSearchTerm(e.target.value)}
-          style={{
-            flex: 1,
-            background: 'var(--input-bg)',
-            border: '1px solid var(--border-color)',
-            color: 'var(--text-primary)',
-            padding: '10px 16px',
-            borderRadius: '10px',
-            outline: 'none',
-            fontSize: '14px'
-          }}
-        />
-        <button
-          type="submit"
-          style={{
-            background: 'var(--accent-blue)',
-            color: '#fff',
-            border: 'none',
-            padding: '10px 20px',
-            borderRadius: '10px',
-            cursor: 'pointer',
-            fontWeight: 600
-          }}
-        >
-          Search
-        </button>
-      </form>
+      {activeFolder !== 'unmatched' && (
+        <form onSubmit={handleSearchSubmit} style={{ margin: '20px 0', display: 'flex', gap: '12px' }}>
+          <input
+            type="text"
+            placeholder="Search by Template ID, Intent, or Question..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            style={{
+              flex: 1,
+              background: 'var(--input-bg)',
+              border: '1px solid var(--border-color)',
+              color: 'var(--text-primary)',
+              padding: '10px 16px',
+              borderRadius: '10px',
+              outline: 'none',
+              fontSize: '14px'
+            }}
+          />
+          <button
+            type="submit"
+            style={{
+              background: 'var(--accent-blue)',
+              color: '#fff',
+              border: 'none',
+              padding: '10px 20px',
+              borderRadius: '10px',
+              cursor: 'pointer',
+              fontWeight: 600
+            }}
+          >
+            Search
+          </button>
+        </form>
+      )}
 
-      {/* Template Cards Grid */}
-      {loading ? (
+      {/* Main Folder Views */}
+      {activeFolder === 'unmatched' ? (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '14px', marginTop: '16px' }}>
+          {unmatchedQueries.length === 0 ? (
+            <div style={{ textAlign: 'center', padding: '40px', color: 'var(--text-muted)' }} className="glass-panel">
+              🎉 No unmatched scope queries logged! All asked queries currently match canonical templates.
+            </div>
+          ) : (
+            unmatchedQueries.map((item, idx) => (
+              <div key={item.id || idx} className="glass-panel" style={{ borderLeft: '4px solid #ec4899', padding: '16px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '12px' }}>
+                  <div style={{ flex: 1, minWidth: '280px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '6px' }}>
+                      <span style={{ fontSize: '11px', background: 'rgba(236, 72, 153, 0.15)', color: '#ec4899', fontWeight: 700, padding: '2px 8px', borderRadius: '6px' }}>
+                        Log #{item.id}
+                      </span>
+                      <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
+                        📅 {item.logged_at ? new Date(item.logged_at).toLocaleString() : 'Just now'}
+                      </span>
+                    </div>
+
+                    <h3 style={{ fontSize: '15px', fontWeight: 600, color: 'var(--text-primary)', margin: '4px 0 8px' }}>
+                      🗣️ "{item.query_text}"
+                    </h3>
+
+                    <div style={{ fontSize: '12.5px', background: 'var(--bg-card-hover)', border: '1px solid var(--border-color)', borderRadius: '8px', padding: '10px 12px', margin: '8px 0', color: 'var(--text-secondary)' }}>
+                      <strong>LLM Scope Reason:</strong> {item.reason}
+                    </div>
+
+                    {item.candidate_template_ids && item.candidate_template_ids.length > 0 && (
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '11.5px', color: 'var(--text-muted)', marginTop: '6px' }}>
+                        <span>Candidates Evaluated:</span>
+                        {item.candidate_template_ids.map((cid: string) => (
+                          <span key={cid} style={{ background: 'var(--input-bg)', border: '1px solid var(--border-color)', padding: '1px 6px', borderRadius: '4px', fontFamily: 'monospace', fontSize: '11px' }}>
+                            {cid}
+                          </span>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                  <button
+                    onClick={() => handleConvertUnmatchedToTemplate(item)}
+                    style={{
+                      background: 'linear-gradient(135deg, #ec4899 0%, #be185d 100%)',
+                      color: '#fff',
+                      border: 'none',
+                      padding: '8px 14px',
+                      borderRadius: '8px',
+                      fontWeight: 600,
+                      fontSize: '12.5px',
+                      cursor: 'pointer',
+                      boxShadow: '0 3px 10px rgba(236, 72, 153, 0.3)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '6px'
+                    }}
+                  >
+                    ➕ Convert to Template
+                  </button>
+                </div>
+              </div>
+            ))
+          )}
+        </div>
+      ) : loading ? (
         <div style={{ textAlign: 'center', padding: '40px', color: 'var(--text-muted)' }}>
           Loading templates from PostgreSQL metadata DB...
         </div>
       ) : (
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(360px, 1fr))', gap: '16px' }}>
-          {templates.map((tpl) => (
+          {templates
+            .filter(t => activeFolder === 'verified' ? t.is_verified !== false : t.is_verified === false)
+            .map((tpl, index) => (
             <div key={tpl.template_id} className="glass-panel" style={{ display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
               <div>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
                   <span style={{ fontFamily: 'monospace', fontWeight: 700, background: 'rgba(37, 99, 235, 0.15)', color: 'var(--accent-blue)', padding: '2px 8px', borderRadius: '6px', fontSize: '13px' }}>
-                    {tpl.template_id}
+                    #{index + 1}. {tpl.template_id}
                   </span>
 
                   <div style={{ display: 'flex', gap: '6px' }}>
+                    <span style={{ fontSize: '11px', padding: '2px 6px', borderRadius: '4px', background: tpl.is_verified !== false ? 'rgba(16, 185, 129, 0.2)' : 'rgba(245, 158, 11, 0.2)', color: tpl.is_verified !== false ? 'var(--accent-emerald)' : '#f59e0b', fontWeight: 600 }}>
+                      {tpl.is_verified !== false ? 'VERIFIED' : 'UN-VERIFIED'}
+                    </span>
                     <span style={{ fontSize: '11px', padding: '2px 6px', borderRadius: '4px', background: tpl.is_active ? 'rgba(16, 185, 129, 0.2)' : 'rgba(239, 68, 68, 0.2)', color: tpl.is_active ? 'var(--accent-emerald)' : '#ef4444', fontWeight: 600 }}>
                       {tpl.is_active ? 'ACTIVE' : 'INACTIVE'}
-                    </span>
-                    <span style={{ fontSize: '11px', padding: '2px 6px', borderRadius: '4px', background: tpl.has_embedding ? 'rgba(124, 58, 237, 0.15)' : 'rgba(148, 163, 184, 0.2)', color: tpl.has_embedding ? 'var(--accent-purple)' : 'var(--text-muted)', fontWeight: 600 }}>
-                      {tpl.has_embedding ? 'VECTOR 768-D' : 'NO VECTOR'}
                     </span>
                   </div>
                 </div>
@@ -334,7 +556,7 @@ export const DeveloperStudio: React.FC = () => {
               </div>
 
               {/* Card Actions */}
-              <div style={{ display: 'flex', gap: '8px', marginTop: '12px', paddingTop: '12px', borderTop: '1px solid var(--border-color)' }}>
+              <div style={{ display: 'flex', gap: '6px', marginTop: '12px', paddingTop: '12px', borderTop: '1px solid var(--border-color)', flexWrap: 'wrap' }}>
                 <button
                   onClick={() => openTestSandbox(tpl)}
                   style={{
@@ -357,7 +579,7 @@ export const DeveloperStudio: React.FC = () => {
                     background: 'rgba(59, 130, 246, 0.15)',
                     border: '1px solid rgba(59, 130, 246, 0.3)',
                     color: 'var(--accent-blue)',
-                    padding: '6px 12px',
+                    padding: '6px 10px',
                     borderRadius: '6px',
                     fontSize: '12px',
                     fontWeight: 600,
@@ -367,18 +589,20 @@ export const DeveloperStudio: React.FC = () => {
                   ✏️ Edit
                 </button>
                 <button
-                  onClick={() => handleToggleActive(tpl)}
+                  onClick={() => handleToggleVerified(tpl)}
+                  title={tpl.is_verified !== false ? 'Move to Un-verified folder' : 'Move to Verified folder'}
                   style={{
-                    background: 'var(--bg-card-hover)',
-                    border: '1px solid var(--border-color)',
-                    color: 'var(--text-secondary)',
+                    background: tpl.is_verified !== false ? 'rgba(245, 158, 11, 0.15)' : 'rgba(16, 185, 129, 0.15)',
+                    border: '1px solid ' + (tpl.is_verified !== false ? 'rgba(245, 158, 11, 0.3)' : 'rgba(16, 185, 129, 0.3)'),
+                    color: tpl.is_verified !== false ? '#f59e0b' : 'var(--accent-emerald)',
                     padding: '6px 10px',
                     borderRadius: '6px',
                     fontSize: '12px',
+                    fontWeight: 600,
                     cursor: 'pointer'
                   }}
                 >
-                  {tpl.is_active ? 'Disable' : 'Enable'}
+                  {tpl.is_verified !== false ? 'Un-verify' : 'Verify ✓'}
                 </button>
                 <button
                   onClick={() => handleDeleteTemplate(tpl.template_id)}
@@ -421,6 +645,7 @@ export const DeveloperStudio: React.FC = () => {
                     type="text"
                     required
                     disabled={!!editingTemplate}
+                    placeholder="e.g. CMP_819"
                     value={formData.template_id}
                     onChange={(e) => setFormData({ ...formData, template_id: e.target.value })}
                     style={{ width: '100%', padding: '8px 12px', background: 'var(--input-bg)', border: '1px solid var(--border-color)', color: 'var(--text-primary)', borderRadius: '6px' }}
@@ -431,6 +656,7 @@ export const DeveloperStudio: React.FC = () => {
                   <input
                     type="text"
                     required
+                    placeholder="e.g. pending_complaints_by_department"
                     value={formData.intent}
                     onChange={(e) => setFormData({ ...formData, intent: e.target.value })}
                     style={{ width: '100%', padding: '8px 12px', background: 'var(--input-bg)', border: '1px solid var(--border-color)', color: 'var(--text-primary)', borderRadius: '6px' }}
@@ -472,6 +698,19 @@ export const DeveloperStudio: React.FC = () => {
                   onChange={(e) => setFormData({ ...formData, sql_template: e.target.value })}
                   style={{ width: '100%', padding: '8px 12px', background: 'var(--input-bg)', border: '1px solid var(--border-color)', color: 'var(--accent-blue)', borderRadius: '6px', fontFamily: 'monospace', fontSize: '12px' }}
                 />
+              </div>
+
+              {/* Target Folder Selection */}
+              <div>
+                <label style={{ fontSize: '12px', color: 'var(--text-secondary)', display: 'block', marginBottom: '4px' }}>Verification Folder Destination</label>
+                <select
+                  value={formData.is_verified ? 'verified' : 'unverified'}
+                  onChange={(e) => setFormData({ ...formData, is_verified: e.target.value === 'verified' })}
+                  style={{ width: '100%', padding: '8px 12px', background: 'var(--input-bg)', border: '1px solid var(--border-color)', color: 'var(--text-primary)', borderRadius: '6px', fontSize: '13px' }}
+                >
+                  <option value="verified">📁 Verified Queries Folder</option>
+                  <option value="unverified">📂 Un-verified Queries Folder</option>
+                </select>
               </div>
 
               {/* Placeholders Editor */}

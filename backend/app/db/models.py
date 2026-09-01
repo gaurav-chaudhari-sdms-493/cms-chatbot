@@ -27,6 +27,7 @@ class QueryTemplate(Base):
     sql_template = Column(Text, nullable=False)
     result_type = Column(String(50), nullable=False, default="tabular")
     is_active = Column(Boolean, nullable=False, default=True, index=True)
+    is_verified = Column(Boolean, nullable=False, default=False, index=True)
     version = Column(Integer, nullable=False, default=1)
     
     # JSON list of float values for vector embedding (768-dim)
@@ -175,4 +176,22 @@ class ChatMessage(Base):
     )
 
     session = relationship("ChatSession", back_populates="messages")
+
+
+class UnmatchedScopeQueryLog(Base):
+    """Stores valid PMC-related user queries that could not be matched to an existing query template."""
+
+    __tablename__ = "unmatched_scope_queries"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    query_text = Column(Text, nullable=False, index=True)
+    reason = Column(Text, nullable=True)
+    candidate_template_ids = Column(JSON, nullable=True)
+    session_id = Column(String(50), nullable=True)
+    logged_at = Column(
+        DateTime(timezone=True),
+        nullable=False,
+        default=lambda: datetime.now(timezone.utc)
+    )
+
 

@@ -74,6 +74,31 @@ SYNONYM_MAPS: Dict[str, Dict[str, str]] = {
         "ढोले पाटील": "Dhole Patil Road",
         "warje": "Warje",
         "वारजे": "Warje"
+    },
+    "status_master": {
+        "completed": "Resolved",
+        "complete": "Resolved",
+        "resolved": "Resolved",
+        "solved": "Resolved",
+        "done": "Resolved",
+        "closed": "Closed - Not Valid",
+        "closed invalid": "Closed - Not Valid",
+        "pending": "Pending",
+        "open": "Pending",
+        "unresolved": "Pending",
+        "active": "Pending",
+        "escalated": "Escalated",
+        "reopened": "Reopened",
+        "assigned": "Assigned",
+        "registered": "Registered",
+        "processing": "Processing",
+        "pending info": "Pending Info",
+        "transferred": "Transferred",
+        "पूर्ण": "Resolved",
+        "सोडवलेल्या": "Resolved",
+        "प्रलंबित": "Pending",
+        "उघड्या": "Pending",
+        "वाढवलेल्या": "Escalated"
     }
 }
 
@@ -109,9 +134,9 @@ class EntityResolver:
         if source_table not in approved_tables:
             return None
 
-        # Fetch records from target master table including optional _mar column if exists
+        # Fetch records from target master table ordered by primary key ID ASC
         try:
-            sql = text(f"SELECT {source_id_col}, {source_label_col} FROM {source_table};")
+            sql = text(f"SELECT {source_id_col}, {source_label_col} FROM {source_table} ORDER BY {source_id_col} ASC;")
             records = pmc_session.execute(sql).fetchall()
         except Exception:
             return None
@@ -119,15 +144,16 @@ class EntityResolver:
         if not records:
             return None
 
-        # Build candidate maps: label -> id
+        # Build candidate maps: label -> id (preserving lowest primary key ID for duplicate names)
         label_to_id = {}
         candidate_labels = []
 
         for r in records:
             rec_id = r[0]
             rec_label = str(r[1])
-            label_to_id[rec_label] = rec_id
-            candidate_labels.append(rec_label)
+            if rec_label not in label_to_id:
+                label_to_id[rec_label] = rec_id
+                candidate_labels.append(rec_label)
 
         # 1. Check Synonym Map First
         query_lower = query_text.lower()
