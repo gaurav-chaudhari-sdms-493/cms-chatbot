@@ -8,24 +8,24 @@
 
 ## Scope Definition (What the chatbot MUST answer)
 
-| # | Intent Category | What it covers |
-|---|----------------|----------------|
-| A | Pending / Open complaints | Counts & lists by department, ward, zone, category, age |
-| B | Officer performance | Best/worst officers, resolution counts, avg time, per ward/dept/category |
-| C | SLA compliance & breaches | % within SLA, breached complaints, near-breach warnings |
-| D | Escalations | Escalated complaints, escalation levels, repeat escalations |
-| E | Category analysis | Top categories, category trends, category × ward |
-| F | Ward / Zone comparison | Rankings, best/worst wards, zone rollups |
-| G | Trends & time analysis | Daily/weekly/monthly trends, spikes, seasonal patterns |
-| H | Resolution stats | Resolved counts, avg resolution time, closure rate |
-| I | Citizen feedback | Ratings, satisfaction %, negative feedback |
-| J | Hotspots / Location | Geographic clusters, repeat-complaint locations |
-| K | Department deep-dive | One department's full picture |
-| L | Aging / Oldest | Complaints pending > X days, oldest open complaints |
-| M | Source / Channel | Web vs call center vs walk-in vs Swachhata |
-| N | Reopened / Rejected / Duplicates | Quality-of-resolution signals |
-| O | Workload & staffing | Officer workload, unassigned complaints, capacity |
-| P | Specific complaint lookup | Status of one complaint by number |
+| # | Intent Category                  | What it covers                                                           |
+| - | -------------------------------- | ------------------------------------------------------------------------ |
+| A | Pending / Open complaints        | Counts & lists by department, ward, zone, category, age                  |
+| B | Officer performance              | Best/worst officers, resolution counts, avg time, per ward/dept/category |
+| C | SLA compliance & breaches        | % within SLA, breached complaints, near-breach warnings                  |
+| D | Escalations                      | Escalated complaints, escalation levels, repeat escalations              |
+| E | Category analysis                | Top categories, category trends, category × ward                        |
+| F | Ward / Zone comparison           | Rankings, best/worst wards, zone rollups                                 |
+| G | Trends & time analysis           | Daily/weekly/monthly trends, spikes, seasonal patterns                   |
+| H | Resolution stats                 | Resolved counts, avg resolution time, closure rate                       |
+| I | Citizen feedback                 | Ratings, satisfaction %, negative feedback                               |
+| J | Hotspots / Location              | Geographic clusters, repeat-complaint locations                          |
+| K | Department deep-dive             | One department's full picture                                            |
+| L | Aging / Oldest                   | Complaints pending > X days, oldest open complaints                      |
+| M | Source / Channel                 | Web vs call center vs walk-in vs Swachhata                               |
+| N | Reopened / Rejected / Duplicates | Quality-of-resolution signals                                            |
+| O | Workload & staffing              | Officer workload, unassigned complaints, capacity                        |
+| P | Specific complaint lookup        | Status of one complaint by number                                        |
 
 ## Out of Scope (chatbot must politely refuse / redirect)
 
@@ -293,30 +293,31 @@
 
 Every category A–P was verified answerable with a live SQL query. Key tables/columns:
 
-| Category | Backing tables / columns | Verified |
-|---|---|---|
-| A. Pending | `complaint` + `status_master.is_terminal=false`, `department_master`, `ward_master` | ✅ |
-| B. Officer performance | `complaint.resolved_by_id` → `user_master.full_name`, `complaint_assignment` (37K+ rows) | ✅ |
-| C. SLA | `complaint.sla_status`, `sla_deadline`, `sla_hours`, `sla_paused_*` | ✅ |
-| D. Escalations | `escalation_history`, `complaint.escalation_level`, `last_escalated_at` | ✅ |
-| E. Categories | `complaint.category_id`, `sub_category_id` (81 categories in data) | ✅ |
-| F. Ward/Zone | `complaint.ward_id`, `zone_id`, `prabhag_id` | ✅ |
-| G. Trends | `complaint.created_at` (78 months of history) | ✅ |
-| H. Resolution | `complaint.resolved_at`, `closed_at` (avg 19.2 days in test data) | ✅ ⚠️ see caveat 1 |
-| I. Feedback | `complaint_feedback.rating` (15.5K rows, avg 2.51) | ✅ |
-| J. Hotspots | `complaint.latitude/longitude` (508K geocoded) + PostGIS | ✅ |
-| K. Dept deep-dive | joins of all above | ✅ ⚠️ see caveat 2 |
-| L. Aging | `created_at` + non-terminal status | ✅ |
-| M. Channels | `complaint.source_channel` enum: WEB, MOBILE, CALL_CENTER, WALK_IN, ABHYAGAT_KAKSH, EMAIL, WHATSAPP, EXTERNAL_API; Swachhata via `swachhata_complaint` | ✅ |
-| N. Reopen/Reject/Dup | `complaint.reopen_count` (12K reopened), `is_duplicate`, `parent_complaint_id`, status CLOSED_INVALID | ✅ |
-| O. Workload | `complaint.assigned_to_id`, `ward_officer_id`, `officer_jurisdiction`, `department_ward_officer` | ✅ |
-| P. Lookup | `complaint.complaint_number` (CMS{YEAR}{ID} format) | ✅ |
+| Category               | Backing tables / columns                                                                                                                                   | Verified             |
+| ---------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------- |
+| A. Pending             | `complaint` + `status_master.is_terminal=false`, `department_master`, `ward_master`                                                                | ✅                   |
+| B. Officer performance | `complaint.resolved_by_id` → `user_master.full_name`, `complaint_assignment` (37K+ rows)                                                            | ✅                   |
+| C. SLA                 | `complaint.sla_status`, `sla_deadline`, `sla_hours`, `sla_paused_*`                                                                                | ✅                   |
+| D. Escalations         | `escalation_history`, `complaint.escalation_level`, `last_escalated_at`                                                                              | ✅                   |
+| E. Categories          | `complaint.category_id`, `sub_category_id` (81 categories in data)                                                                                     | ✅                   |
+| F. Ward/Zone           | `complaint.ward_id`, `zone_id`, `prabhag_id`                                                                                                         | ✅                   |
+| G. Trends              | `complaint.created_at` (78 months of history)                                                                                                            | ✅                   |
+| H. Resolution          | `complaint.resolved_at`, `closed_at` (avg 19.2 days in test data)                                                                                      | ✅ ⚠️ see caveat 1 |
+| I. Feedback            | `complaint_feedback.rating` (15.5K rows, avg 2.51)                                                                                                       | ✅                   |
+| J. Hotspots            | `complaint.latitude/longitude` (508K geocoded) + PostGIS                                                                                                 | ✅                   |
+| K. Dept deep-dive      | joins of all above                                                                                                                                         | ✅ ⚠️ see caveat 2 |
+| L. Aging               | `created_at` + non-terminal status                                                                                                                       | ✅                   |
+| M. Channels            | `complaint.source_channel` enum: WEB, MOBILE, CALL_CENTER, WALK_IN, ABHYAGAT_KAKSH, EMAIL, WHATSAPP, EXTERNAL_API; Swachhata via `swachhata_complaint` | ✅                   |
+| N. Reopen/Reject/Dup   | `complaint.reopen_count` (12K reopened), `is_duplicate`, `parent_complaint_id`, status CLOSED_INVALID                                                | ✅                   |
+| O. Workload            | `complaint.assigned_to_id`, `ward_officer_id`, `officer_jurisdiction`, `department_ward_officer`                                                   | ✅                   |
+| P. Lookup              | `complaint.complaint_number` (CMS{YEAR}{ID} format)                                                                                                      | ✅                   |
 
 ## SQL Query Templates (per intent category)
 
 One parameterized template per category — each covers all questions in its block. The bot swaps the `WHERE` filters (`ward_id`, `department_id`, `category_id`, date range) per question. Table names are the **physical** names (`_master` suffix). "Pending" always means `status_master.is_terminal = false`.
 
 > Common filter fragments used below:
+>
 > - `:date_from` / `:date_to` — resolved from phrases like "this month", "गेल्या महिन्यात", "last quarter"
 > - `AND c.ward_id = :ward_id` / `AND c.department_id = :dept_id` / `AND c.zone_id = :zone_id` / `AND c.category_id = :category_id` — added only when the question names one
 > - Marathi answers: select `*_mar` columns (`ward_name_mar`, `department_name_mar`, `full_name_mar`, `status_name_mar`)

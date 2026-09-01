@@ -52,177 +52,6 @@ export const MarkdownReport: React.FC<Props> = ({ data, onSelectOption }) => {
       width: '100%'
     }}>
 
-      {/* Collapsible Info (i) Template Details Card */}
-      {showTemplateInfo && (
-        <div style={{
-          background: 'var(--bg-card-hover)',
-          border: '1px solid rgba(139, 92, 246, 0.3)',
-          borderRadius: '12px',
-          padding: '16px 18px',
-          marginBottom: '18px',
-          display: 'flex',
-          flexDirection: 'column',
-          gap: '14px',
-          animation: 'fadeIn 0.2s ease-in-out'
-        }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <Cpu size={16} color="var(--accent-purple)" />
-              <span style={{ fontSize: '13px', fontWeight: 700, color: 'var(--text-primary)' }}>
-                LLM Query Template Selection & Candidate Info
-              </span>
-            </div>
-            <span style={{
-              background: 'linear-gradient(135deg, #8b5cf6 0%, #6366f1 100%)',
-              color: '#ffffff',
-              padding: '3px 10px',
-              borderRadius: '12px',
-              fontSize: '11px',
-              fontWeight: 700,
-              letterSpacing: '0.04em'
-            }}>
-              {data.template_id || 'OPENROUTER_DYNAMIC'}
-            </span>
-          </div>
-
-          <div style={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
-            gap: '12px',
-            fontSize: '12px',
-            color: 'var(--text-secondary)'
-          }}>
-            <div>
-              <strong style={{ color: 'var(--text-primary)' }}>Selected Template:</strong>{' '}
-              <code>{data.template_id || 'Canonical Dynamic Match'}</code>
-            </div>
-            <div>
-              <strong style={{ color: 'var(--text-primary)' }}>Retrieval Model:</strong>{' '}
-              E5 Multilingual Dense + BM25 RRF
-            </div>
-            <div>
-              <strong style={{ color: 'var(--text-primary)' }}>LLM Engine:</strong>{' '}
-              OpenRouter Pipeline
-            </div>
-          </div>
-
-          {/* Top Candidate Templates Provided to OpenRouter LLM */}
-          {data.candidate_templates && data.candidate_templates.length > 0 && (
-            <div style={{ marginTop: '6px', borderTop: '1px solid var(--border-color)', paddingTop: '12px' }}>
-              <span style={{ fontSize: '11px', fontWeight: 700, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '10px' }}>
-                <Layers size={14} color="var(--accent-purple)" />
-                TOP CANDIDATE TEMPLATES PROVIDED TO LLM ({data.candidate_templates.length}):
-              </span>
-
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                {data.candidate_templates.map((cand, idx) => {
-                  const isSelected = cand.template_id === data.template_id;
-                  return (
-                    <div
-                      key={idx}
-                      style={{
-                        background: isSelected ? 'rgba(139, 92, 246, 0.12)' : 'var(--bg-card)',
-                        border: isSelected ? '1px solid rgba(139, 92, 246, 0.4)' : '1px solid var(--border-color)',
-                        borderRadius: '8px',
-                        padding: '10px 14px',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'space-between',
-                        gap: '12px'
-                      }}
-                    >
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '3px', flex: 1 }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
-                          <span style={{
-                            fontWeight: 700,
-                            fontSize: '12px',
-                            color: isSelected ? 'var(--accent-purple)' : 'var(--text-primary)'
-                          }}>
-                            #{idx + 1} {cand.template_id}
-                          </span>
-                          <span style={{ fontSize: '11px', color: 'var(--text-secondary)', fontStyle: 'italic' }}>
-                            ({cand.intent})
-                          </span>
-                          {isSelected && (
-                            <span style={{
-                              background: '#10b981',
-                              color: '#ffffff',
-                              fontSize: '10px',
-                              fontWeight: 700,
-                              padding: '2px 8px',
-                              borderRadius: '6px',
-                              display: 'inline-flex',
-                              alignItems: 'center',
-                              gap: '4px'
-                            }}>
-                              <CheckCircle2 size={10} /> SELECTED BY LLM
-                            </span>
-                          )}
-                        </div>
-                        <div style={{ fontSize: '11px', color: 'var(--text-secondary)', lineHeight: 1.4 }}>
-                          "{cand.question_template}"
-                        </div>
-                      </div>
-                      <div style={{ fontSize: '11px', fontWeight: 600, color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>
-                        RRF Score: {cand.score}
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          )}
-
-          {/* Executed SQL query preview if present */}
-          {data.sql_used && (
-            <div style={{ marginTop: '6px', borderTop: '1px solid var(--border-color)', paddingTop: '12px' }}>
-              <div style={{
-                display: 'flex',
-                justifyContent: 'space-between',
-                alignItems: 'center',
-                marginBottom: '6px'
-              }}>
-                <span style={{ fontSize: '11px', fontWeight: 600, color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: '5px' }}>
-                  <Database size={12} color="var(--accent-blue)" />
-                  EXECUTED PARAMETERIZED SQL
-                </span>
-                <button
-                  onClick={handleCopySql}
-                  style={{
-                    background: 'transparent',
-                    border: 'none',
-                    color: copiedSql ? '#10b981' : 'var(--text-secondary)',
-                    cursor: 'pointer',
-                    fontSize: '11px',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '4px'
-                  }}
-                >
-                  {copiedSql ? <Check size={12} /> : <Copy size={12} />}
-                  {copiedSql ? 'Copied' : 'Copy SQL'}
-                </button>
-              </div>
-              <pre style={{
-                background: 'rgba(0, 0, 0, 0.4)',
-                border: '1px solid var(--border-color)',
-                borderRadius: '8px',
-                padding: '10px 12px',
-                margin: 0,
-                fontSize: '11px',
-                color: '#38bdf8',
-                fontFamily: 'monospace',
-                whiteSpace: 'pre-wrap',
-                overflowX: 'auto',
-                maxHeight: '160px'
-              }}>
-                {data.sql_used}
-              </pre>
-            </div>
-          )}
-        </div>
-      )}
-
       {/* Main Markdown Content Body with Extender / Collapsible Height */}
       <div style={{ position: 'relative', margin: '12px 0' }}>
         <div
@@ -393,6 +222,183 @@ export const MarkdownReport: React.FC<Props> = ({ data, onSelectOption }) => {
           </button>
         </div>
       </div>
+
+      {/* Collapsible Info (i) Template Details Card - Rendered at bottom of Info (i) button */}
+      {showTemplateInfo && (
+        <div style={{
+          background: 'var(--bg-card-hover)',
+          border: '1px solid rgba(139, 92, 246, 0.3)',
+          borderRadius: '12px',
+          padding: '16px 18px',
+          marginTop: '14px',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: '14px',
+          animation: 'fadeIn 0.2s ease-in-out'
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <Cpu size={16} color="var(--accent-purple)" />
+              <span style={{ fontSize: '13px', fontWeight: 700, color: 'var(--text-primary)' }}>
+                LLM Query Template Selection & Candidate Info
+              </span>
+            </div>
+            <span style={{
+              background: 'linear-gradient(135deg, #8b5cf6 0%, #6366f1 100%)',
+              color: '#ffffff',
+              padding: '3px 10px',
+              borderRadius: '12px',
+              fontSize: '11px',
+              fontWeight: 700,
+              letterSpacing: '0.04em'
+            }}>
+              {data.template_id || 'OPENROUTER_DYNAMIC'}
+            </span>
+          </div>
+
+          <div style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
+            gap: '12px',
+            fontSize: '12px',
+            color: 'var(--text-secondary)'
+          }}>
+            <div>
+              <strong style={{ color: 'var(--text-primary)' }}>Selected Template:</strong>{' '}
+              <code>{data.template_id || 'Canonical Dynamic Match'}</code>
+            </div>
+            <div>
+              <strong style={{ color: 'var(--text-primary)' }}>Retrieval Model:</strong>{' '}
+              <span>E5 Multilingual Dense + BM25 RRF</span>
+            </div>
+            <div>
+              <strong style={{ color: 'var(--text-primary)' }}>LLM Engine:</strong>{' '}
+              <span>OpenRouter Pipeline</span>
+            </div>
+          </div>
+
+          {/* Top 5 candidate templates provided to LLM */}
+          {data.candidate_templates && data.candidate_templates.length > 0 && (
+            <div style={{ marginTop: '4px' }}>
+              <div style={{
+                fontSize: '11px',
+                fontWeight: 700,
+                color: 'var(--accent-purple)',
+                textTransform: 'uppercase',
+                letterSpacing: '0.05em',
+                marginBottom: '8px',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px'
+              }}>
+                <Layers size={13} />
+                TOP CANDIDATE TEMPLATES PROVIDED TO LLM ({data.candidate_templates.length}):
+              </div>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                {data.candidate_templates.map((cand, idx) => {
+                  const isSelected = cand.template_id === data.template_id;
+                  return (
+                    <div
+                      key={cand.template_id}
+                      style={{
+                        background: isSelected ? 'rgba(139, 92, 246, 0.12)' : 'rgba(255, 255, 255, 0.03)',
+                        border: isSelected ? '1px solid rgba(139, 92, 246, 0.4)' : '1px solid var(--border-color)',
+                        borderRadius: '8px',
+                        padding: '8px 12px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        gap: '10px'
+                      }}
+                    >
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                          <span style={{ fontSize: '12px', fontWeight: 700, color: isSelected ? 'var(--accent-purple)' : 'var(--text-primary)' }}>
+                            #{idx + 1} {cand.template_id}
+                          </span>
+                          <span style={{ fontSize: '11px', color: 'var(--text-muted)', fontStyle: 'italic' }}>
+                            ({cand.intent})
+                          </span>
+                          {isSelected && (
+                            <span style={{
+                              background: '#10b981',
+                              color: '#ffffff',
+                              fontSize: '10px',
+                              fontWeight: 700,
+                              padding: '2px 8px',
+                              borderRadius: '6px',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '4px'
+                            }}>
+                              <CheckCircle2 size={10} /> SELECTED BY LLM
+                            </span>
+                          )}
+                        </div>
+                        <div style={{ fontSize: '11px', color: 'var(--text-secondary)', lineHeight: 1.4 }}>
+                          "{cand.question_template}"
+                        </div>
+                      </div>
+                      <div style={{ fontSize: '11px', fontWeight: 600, color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>
+                        RRF Score: {cand.score}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          {/* Executed SQL query preview if present */}
+          {data.sql_used && (
+            <div style={{ marginTop: '6px', borderTop: '1px solid var(--border-color)', paddingTop: '12px' }}>
+              <div style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                marginBottom: '6px'
+              }}>
+                <span style={{ fontSize: '11px', fontWeight: 600, color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: '5px' }}>
+                  <Database size={12} color="var(--accent-blue)" />
+                  EXECUTED PARAMETERIZED SQL
+                </span>
+                <button
+                  onClick={handleCopySql}
+                  style={{
+                    background: 'transparent',
+                    border: 'none',
+                    color: copiedSql ? '#10b981' : 'var(--text-secondary)',
+                    cursor: 'pointer',
+                    fontSize: '11px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '4px'
+                  }}
+                >
+                  {copiedSql ? <Check size={12} /> : <Copy size={12} />}
+                  {copiedSql ? 'Copied' : 'Copy SQL'}
+                </button>
+              </div>
+              <pre style={{
+                background: 'rgba(0, 0, 0, 0.4)',
+                border: '1px solid var(--border-color)',
+                borderRadius: '8px',
+                padding: '10px 12px',
+                margin: 0,
+                fontSize: '11px',
+                color: '#38bdf8',
+                fontFamily: 'monospace',
+                whiteSpace: 'pre-wrap',
+                overflowX: 'auto',
+                maxHeight: '160px'
+              }}>
+                {data.sql_used}
+              </pre>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Render Picklist Component if message is a Follow-Up Question */}
       {data.markdown_report && (data.markdown_report.includes('Follow-Up Question') || data.markdown_report.includes('❓')) && (
