@@ -3,6 +3,8 @@ import { User, Sparkles, UserCheck, BarChart3, AlertTriangle, MapPin } from 'luc
 import { ChatMessageResponse, AgentQueryResponse } from '../types';
 import { MarkdownReport } from './MarkdownReport';
 import { AnimatedProgress } from './AnimatedProgress';
+import { VannaChunkRenderer } from './VannaChunkRenderer';
+
 
 interface Props {
     messages: ChatMessageResponse[];
@@ -194,6 +196,7 @@ export const ChatStream: React.FC<Props> = ({ messages, loading, questionText, o
                     );
                 } else {
                     // Agent message
+
                     const agentResponse: AgentQueryResponse = {
                         question: questionText || 'Query Result',
                         markdown_report: msg.content,
@@ -206,9 +209,23 @@ export const ChatStream: React.FC<Props> = ({ messages, loading, questionText, o
                     };
                     return (
                         <div key={msg.id} style={{ width: '100%' }}>
+                            {msg.sql_used && (
+                                <VannaChunkRenderer chunk={{
+                                    id: `status-card-${msg.id}`,
+                                    type: 'status_card',
+                                    data: {
+                                        title: 'Executing SQL Query',
+                                        status: 'success',
+                                        description: 'Vanna AI 2.0 PostgreSQL Tool',
+                                        icon: '⚙️',
+                                        metadata: { sql: msg.sql_used }
+                                    }
+                                }} />
+                            )}
                             <MarkdownReport data={agentResponse} onSelectOption={onSelectExample} />
                         </div>
                     );
+
                 }
             })}
 

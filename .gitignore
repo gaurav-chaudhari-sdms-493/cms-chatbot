@@ -43,3 +43,5 @@ yarn-error.log*
 app_metadata.db
 
 backend/.env
+backend/258d8dc916db8cea/
+vanna/258d8dc916db8cea/

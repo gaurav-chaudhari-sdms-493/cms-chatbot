@@ -105,4 +105,29 @@ export interface ChatSessionDetailResponse {
   messages: ChatMessageResponse[];
 }
 
+export interface VannaRichChunk {
+  id: string;
+  type: 'status_bar_update' | 'task_tracker_update' | 'status_card' | 'dataframe' | 'chart' | 'text' | 'notification' | string;
+  lifecycle?: string;
+  visible?: boolean;
+  interactive?: boolean;
+  data: any;
+}
+
+export interface VannaSimpleChunk {
+  type: string;
+  semantic_type?: string | null;
+  metadata?: any;
+  text: string;
+}
+
+export interface VannaSSEChunk {
+  rich?: VannaRichChunk | null;
+  simple?: VannaSimpleChunk | null;
+  conversation_id?: string;
+  request_id?: string;
+  timestamp?: number;
+}
+
+
 

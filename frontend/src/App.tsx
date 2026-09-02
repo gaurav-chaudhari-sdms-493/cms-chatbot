@@ -26,8 +26,9 @@ export const App: React.FC = () => {
         return (localStorage.getItem('pmc_active_tab') as 'query' | 'developer') || 'query';
     });
     const [queryMode, setQueryMode] = useState<QueryMode>(() => {
-        return (localStorage.getItem('pmc_query_mode') as QueryMode) || 'template';
+        return (localStorage.getItem('pmc_query_mode') as QueryMode) || 'agent';
     });
+
     const [theme, setTheme] = useState<'dark' | 'light'>(() => {
         return (localStorage.getItem('pmc_theme') as 'dark' | 'light') || 'light';
     });

@@ -52,6 +52,19 @@ app.include_router(chat_router, prefix="/api", tags=["Chat History & Multi-Chat"
 # Mount Official Model Context Protocol (MCP) Server over SSE / JSON-RPC
 app.mount("/mcp", mcp_server.http_app())
 
+# Mount Vanna AI 2.0 Agent Routes (/api/vanna/v2/chat_sse, chat_poll, chat_websocket)
+try:
+    from vanna.servers.fastapi.routes import register_chat_routes
+    from vanna.servers.base import ChatHandler
+    from app.vanna_agent import vanna_agent
+    chat_handler = ChatHandler(vanna_agent)
+    register_chat_routes(app, chat_handler)
+    print("Successfully mounted Vanna AI 2.0 endpoints.")
+except Exception as e:
+    print(f"Warning: Could not mount Vanna AI routes: {e}")
+
+
+
 
 
 

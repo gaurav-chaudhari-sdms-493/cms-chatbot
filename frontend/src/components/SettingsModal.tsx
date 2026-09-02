@@ -164,9 +164,9 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                 <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                   <Sparkles size={18} color="#c084fc" />
                   <div style={{ textAlign: 'left' }}>
-                    <div>🧠 Stark AI Agent Mode ("Anything & Everything")</div>
+                    <div>🧠 Stark AI Agent Mode (Vanna AI 2.0 Text-to-SQL)</div>
                     <div style={{ fontSize: '12px', color: 'var(--text-muted)', fontWeight: 400 }}>
-                      Autonomous NL2SQL agent with multi-turn memory & self-correction
+                      Vanna AI 2.0 autonomous search across all PMC database tables with charts & visualizations
                     </div>
                   </div>
                 </div>

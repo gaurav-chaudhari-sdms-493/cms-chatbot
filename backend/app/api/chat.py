@@ -138,7 +138,8 @@ def delete_chat_session(session_id: str, db: Session = Depends(get_metadata_db))
 
 
 @router.post("/sessions/{session_id}/message")
-def post_chat_message(session_id: str, payload: ChatMessageRequest, db: Session = Depends(get_metadata_db)):
+async def post_chat_message(session_id: str, payload: ChatMessageRequest, db: Session = Depends(get_metadata_db)):
+
     session = db.query(ChatSession).filter(ChatSession.id == session_id).first()
     if not session:
         raise HTTPException(status_code=404, detail="Chat session not found")
@@ -167,20 +168,96 @@ def post_chat_message(session_id: str, payload: ChatMessageRequest, db: Session 
             prompt_context.append(f"SQL Used: {m.sql_used}")
 
     
-    # Process turn using MasterOrchestratorAgent
+    # Process turn using Vanna AI 2.0 Agent (with MasterOrchestratorAgent fallback)
     from app.agents import MasterOrchestratorAgent
 
     history_dicts = [
         {"sender": m.sender, "content": m.content, "sql_used": getattr(m, 'sql_used', None)}
         for m in history_msgs[:-1]
     ]
-    
-    agent_res = MasterOrchestratorAgent.process_query(
-        query_text=payload.content,
-        metadata_session=db,
-        session_history=history_dicts,
-        max_retries=3
-    )
+
+    agent_res = None
+    try:
+        from app.vanna_agent import vanna_agent
+        from vanna.servers.base import ChatHandler, ChatRequest
+        
+        chat_handler = ChatHandler(vanna_agent)
+        vanna_req = ChatRequest(message=payload.content, conversation_id=session.id)
+        
+        start_time = time.time()
+        import asyncio
+        loop = asyncio.get_event_loop()
+        if loop.is_running():
+            vanna_resp = await chat_handler.handle_poll(vanna_req)
+        else:
+            vanna_resp = loop.run_until_complete(chat_handler.handle_poll(vanna_req))
+            
+        exec_ms = round((time.time() - start_time) * 1000, 2)
+
+        def get_field(obj, field, default=None):
+            if isinstance(obj, dict):
+                return obj.get(field, default)
+            return getattr(obj, field, default)
+
+        markdown_report = ""
+        sql_used = ""
+        for chunk in vanna_resp.chunks:
+            rich = get_field(chunk, 'rich')
+            if rich:
+                r_type = get_field(rich, 'type')
+                r_data = get_field(rich, 'data') or {}
+                if r_type == 'text':
+                    content = get_field(r_data, 'content')
+                    if content and content not in markdown_report:
+                        markdown_report += content + "\n\n"
+                elif r_type == 'status_card':
+                    metadata = get_field(r_data, 'metadata') or {}
+                    sql = get_field(metadata, 'sql')
+                    if sql:
+                        sql_used = sql
+                elif r_type == 'dataframe':
+                    cols = get_field(r_data, 'columns') or []
+                    rows = get_field(r_data, 'data') or []
+                    if cols and rows:
+                        table_md = "| " + " | ".join(str(c) for c in cols) + " |\n"
+                        table_md += "| " + " | ".join(["---"] * len(cols)) + " |\n"
+                        for row in rows[:100]:
+                            table_md += "| " + " | ".join(str(get_field(row, c, '')) for c in cols) + " |\n"
+                        markdown_report += "\n" + table_md + "\n"
+
+            if not rich:
+                simple = get_field(chunk, 'simple')
+                if simple:
+                    stext = get_field(simple, 'text')
+                    if stext and isinstance(stext, str):
+                        stext = stext.strip()
+                        if stext and stext not in markdown_report and "Tool completed successfully" not in stext and "IMPORTANT: FOR VISUALIZE_DATA" not in stext:
+                            markdown_report += stext + "\n"
+
+
+        
+        if not markdown_report.strip():
+            # Default response for casual greetings if no text chunk was generated
+            markdown_report = "Hello! I am Vanna AI 2.0. How can I assist you with PMC database analytics today?"
+
+        agent_res = {
+            "content": markdown_report.strip(),
+            "sql_used": sql_used,
+            "execution_time_ms": exec_ms,
+            "status": "SUCCESS"
+        }
+    except Exception as e:
+        logger.warning(f"Vanna AI processing exception: {e}")
+
+    if not agent_res:
+        agent_res = MasterOrchestratorAgent.process_query(
+            query_text=payload.content,
+            metadata_session=db,
+            session_history=history_dicts,
+            max_retries=3
+        )
+
+
 
     markdown_report = agent_res.get("content", "")
     sql_used = agent_res.get("sql_used", "")
