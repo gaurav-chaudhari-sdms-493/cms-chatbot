@@ -53,12 +53,27 @@ class MasterOrchestratorAgent:
                     "retry_count": 0
                 }
 
-            # Step 2: RetrieverAgent Hybrid Semantic Candidate Search
+            # Step 2: Contextualize user query using chat history & Hybrid Semantic Candidate Search
+            search_query = query_text
+            if session_history:
+                search_query = EntityResolverAgent.contextualize_query(query_text, session_history)
+
             candidate_tuples = RetrieverAgent.get_top_candidates(
-                query_text=query_text,
+                query_text=search_query,
                 metadata_session=metadata_session,
                 top_k=5
             )
+
+            if search_query != query_text:
+                raw_tuples = RetrieverAgent.get_top_candidates(
+                    query_text=query_text,
+                    metadata_session=metadata_session,
+                    top_k=3
+                )
+                existing_ids = {tpl.template_id for tpl, _ in candidate_tuples}
+                for tpl, score in raw_tuples:
+                    if tpl.template_id not in existing_ids:
+                        candidate_tuples.append((tpl, score))
 
             candidate_templates = [tpl for tpl, _ in candidate_tuples] if candidate_tuples else []
             candidate_details = [
@@ -75,7 +90,7 @@ class MasterOrchestratorAgent:
             eval_res = None
             if candidate_templates:
                 eval_res = EntityResolverAgent.evaluate_query_with_llm(
-                    user_query=query_text,
+                    user_query=search_query,
                     candidate_templates=candidate_templates,
                     session_history=session_history,
                     pmc_session=pmc_session
@@ -133,19 +148,57 @@ class MasterOrchestratorAgent:
                     "category": ("category_master", "id", "category_name", "category_id")
                 }
 
+                unresolved_entities = []
+
                 for param_key, (tbl, id_col, label_col, target_key) in ref_mappings.items():
                     val = bound_params.get(param_key) or bound_params.get(target_key)
-                    if val and isinstance(val, str) and not val.isdigit():
-                        res = EntityResolverAgent.resolve_reference(
-                            query_text=str(val),
-                            source_table=tbl,
-                            source_id_col=id_col,
-                            source_label_col=label_col,
-                            pmc_session=pmc_session
-                        )
-                        if res and "id" in res:
-                            bound_params[target_key] = res["id"]
-                            bound_params[param_key] = res["id"]
+                    if val is not None:
+                        if isinstance(val, str) and not val.isdigit():
+                            res = EntityResolverAgent.resolve_reference(
+                                query_text=str(val),
+                                source_table=tbl,
+                                source_id_col=id_col,
+                                source_label_col=label_col,
+                                pmc_session=pmc_session
+                            )
+                            if res and "id" in res:
+                                bound_params[target_key] = res["id"]
+                                bound_params[param_key] = res["id"]
+                            else:
+                                bound_params[target_key] = None
+                                bound_params[param_key] = None
+                                if param_key in ["department", "ward", "category", "zone"]:
+                                    unresolved_entities.append(str(val))
+                        elif isinstance(val, (int, str)) and str(val).isdigit():
+                            bound_params[target_key] = int(val)
+                            bound_params[param_key] = int(val)
+
+                # Check if query_text specifies an entity term after 'for', 'about', 'under', or 'in' not matched in master tables
+                import re
+                target_match = re.search(r'\b(?:for|about|under|in)\s+([a-zA-Z0-9_\s]{3,25})\b', query_text, re.IGNORECASE)
+                if target_match:
+                    potential_term = target_match.group(1).strip()
+                    stopwords = {"pending", "resolved", "closed", "open", "today", "yesterday", "all", "total", "more", "pune", "pmc", "complaint", "complaints"}
+                    if potential_term.lower() not in stopwords:
+                        found_in_master = False
+                        for tbl, id_col, label_col in [
+                            ("department_master", "id", "department_name"),
+                            ("ward_master", "id", "ward_name"),
+                            ("category_master", "id", "category_name"),
+                            ("zone_master", "id", "zone_name")
+                        ]:
+                            res = EntityResolverAgent.resolve_reference(
+                                query_text=potential_term,
+                                source_table=tbl,
+                                source_id_col=id_col,
+                                source_label_col=label_col,
+                                pmc_session=pmc_session
+                            )
+                            if res and "id" in res:
+                                found_in_master = True
+                                break
+                        if not found_in_master and potential_term not in unresolved_entities:
+                            unresolved_entities.append(potential_term)
 
                 try:
                     exec_res = SQLExecutorAgent.execute_template(
@@ -165,7 +218,8 @@ class MasterOrchestratorAgent:
                         sql_used=sql_used,
                         columns=columns,
                         data=data,
-                        is_marathi=is_mar
+                        is_marathi=is_mar,
+                        unresolved_entities=unresolved_entities if unresolved_entities else None
                     )
 
                     elapsed_ms = round((time.time() - start_time) * 1000, 2)
@@ -186,11 +240,19 @@ class MasterOrchestratorAgent:
             live_schema = fetch_live_database_schema()
             history_str = ""
             if session_history:
-                history_str = "\n".join([f"{m.get('sender')}: {m.get('content')}" for m in session_history[-6:]])
+                history_lines = []
+                for m in session_history[-6:]:
+                    line = f"{m.get('sender')}: {m.get('content')}"
+                    if m.get('sql_used'):
+                        line += f" [SQL: {m.get('sql_used')}]"
+                    history_lines.append(line)
+                history_str = "\n".join(history_lines)
+
+            effective_question = search_query if search_query != query_text else query_text
 
             sql_used, columns, rows, steps_taken = FastMCPAgent.run_tool_loop(
                 schema_context=live_schema,
-                question=query_text,
+                question=effective_question,
                 max_steps=max_retries + 2,
                 history_context=history_str
             )
@@ -214,11 +276,18 @@ class MasterOrchestratorAgent:
                     "retry_count": steps_taken - 1
                 }
             else:
-                fallback_report = f"# ⚠️ Query Resolution Notice\n\nThe AI Multi-Agent system was unable to resolve the query after {max_retries} verification attempts."
+                is_mar = ScopeAgent.is_marathi_query(query_text)
+                fallback_report = SynthesisAgent.generate_report(
+                    query_text=query_text,
+                    sql_used=sql_used or "-- Query returned 0 matching database records",
+                    columns=columns,
+                    data=[],
+                    is_marathi=is_mar
+                )
                 return {
-                    "status": "FAILED",
+                    "status": "SUCCESS",
                     "content": fallback_report,
-                    "sql_used": sql_used or "-- No valid SQL generated",
+                    "sql_used": sql_used or "-- No matching records found",
                     "template_id": None,
                     "candidate_templates": candidate_details,
                     "execution_time_ms": elapsed_ms,

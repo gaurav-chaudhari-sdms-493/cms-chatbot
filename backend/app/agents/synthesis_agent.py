@@ -1,5 +1,5 @@
 import logging
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
 
 logger = logging.getLogger("pmc_chatbot.agents.synthesis")
 
@@ -14,20 +14,30 @@ class SynthesisAgent:
         sql_used: str,
         columns: List[str],
         data: List[Dict[str, Any]],
-        is_marathi: bool = False
+        is_marathi: bool = False,
+        unresolved_entities: Optional[List[str]] = None
     ) -> str:
         """Formats tabular database query results into executive Markdown report cards."""
+        lines = []
+
+        if unresolved_entities:
+            terms_str = ", ".join([f'**"{t}"**' for t in unresolved_entities])
+            if is_marathi:
+                lines.append(f"> ℹ️ **टीप:** {terms_str} नावाचा कोणताही विभाग/क्षेत्रीय कार्यालय/वर्ग महापालिकेच्या मुख्य नोंदवहीत आढळला नाही. खालील आकडेवारी सर्वसाधारण आहे.\n")
+            else:
+                lines.append(f"> ℹ️ **Notice:** No PMC department, ward, or category matching {terms_str} was found in master records. Displaying general complaint statistics below.\n")
+
         if not data:
             if is_marathi:
-                return "### ℹ️ माहिती\n\nदिलेल्या शोधासाठी कोणतीही प्रलंबित/माहिती नोंदी आढळल्या नाहीत."
-            return "### ℹ️ Analytics Result\n\nNo records found matching the specified criteria."
+                lines.append("### ℹ️ माहिती\n\nदिलेल्या शोधासाठी कोणतीही प्रलंबित/माहिती नोंदी आढळल्या नाहीत.")
+            else:
+                lines.append("### ℹ️ Analytics Result\n\nNo records found matching the specified criteria.")
+            return "\n".join(lines)
 
         # Filter out _mar columns from header display if duplicate
         display_cols = [c for c in columns if not c.endswith("_mar")]
         if not display_cols:
             display_cols = columns
-
-        lines = []
 
         # 1. Total counts computation
         count_cols = [

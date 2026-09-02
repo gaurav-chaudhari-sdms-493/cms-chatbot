@@ -170,7 +170,10 @@ def post_chat_message(session_id: str, payload: ChatMessageRequest, db: Session 
     # Process turn using MasterOrchestratorAgent
     from app.agents import MasterOrchestratorAgent
 
-    history_dicts = [{"sender": m.sender, "content": m.content} for m in history_msgs]
+    history_dicts = [
+        {"sender": m.sender, "content": m.content, "sql_used": getattr(m, 'sql_used', None)}
+        for m in history_msgs[:-1]
+    ]
     
     agent_res = MasterOrchestratorAgent.process_query(
         query_text=payload.content,

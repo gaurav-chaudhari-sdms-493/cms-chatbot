@@ -26,7 +26,8 @@ class FastMCPAgent:
             f"You are an autonomous PostgreSQL Data Analyst AI.\n"
             f"You have access to native FastMCP tools: `sample_values`, `inspect_columns`, `execute_sql`.\n"
             f"Use these tools interactively to inspect schema definitions, sample distinct lookup values, and execute read-only PostgreSQL SELECT queries to answer the officer's question.\n"
-            f"Note for date queries: For complaint resolution timeframes (e.g. 'resolved in the last 30 days'), check `updated_at` timestamps in addition to `created_at`.\n\n"
+            f"Note for date queries: For complaint resolution timeframes (e.g. 'resolved in the last 30 days'), check `updated_at` timestamps in addition to `created_at`.\n"
+            f"Note for conversation context: If previous conversation context established a specific department (e.g. Road / Potholes), ward, or category, and current question is a follow-up (e.g. 'all complains', 'show resolved', 'yes'), preserve that department/ward/category filter in your SQL query unless the officer explicitly requested all departments across PMC.\n\n"
             f"{schema_context}"
         )
 

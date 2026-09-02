@@ -50,6 +50,13 @@ def seed_database(force: bool = False):
             print("  (Pass --force to app.db.seed or --force-seed to start.sh to force re-seeding)")
             return
 
+        # 1b. Deactivate legacy non-canonical templates not present in canonical fixtures
+        canonical_ids = {t["template_id"] for t in CANONICAL_TEMPLATES}
+        legacy_count = session.query(QueryTemplate).filter(~QueryTemplate.template_id.in_(canonical_ids)).update({"is_active": False}, synchronize_session=False)
+        if legacy_count:
+            session.commit()
+            print(f"✓ Deactivated {legacy_count} legacy non-canonical templates from active retrieval index.")
+
         # 2. Load embedding model
         print(f"Loading SentenceTransformers embedding model '{EMBEDDING_MODEL_NAME}'...")
         from sentence_transformers import SentenceTransformer

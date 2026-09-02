@@ -1,9 +1,9 @@
 [
   {
     "template_id": "CMP_A01",
-    "intent": "pending_complaints_by_department",
-    "question_template": "How many complaints are pending in {department} or {ward} or department wise?",
-    "retrieval_text": "how many complaints are pending department wise ward wise department pending counts total unresolved",
+    "intent": "complaints_by_department_ward_status",
+    "question_template": "How many {status} complaints in {department} or {ward} or department wise?",
+    "retrieval_text": "how many complaints status pending resolved completed open department wise ward wise counts total",
     "placeholders": [
       {
         "placeholder_name": "department",
@@ -24,12 +24,22 @@
         "source_label_column": "ward_name",
         "required": false,
         "display_order": 2
+      },
+      {
+        "placeholder_name": "status",
+        "data_type": "REFERENCE",
+        "input_mode": "searchable_dropdown",
+        "source_table": "status_master",
+        "source_id_column": "id",
+        "source_label_column": "status_name",
+        "required": false,
+        "display_order": 3
       }
     ],
     "result_type": "tabular",
     "is_active": true,
     "version": 1,
-    "sql_template": "SELECT d.department_name, d.department_name_mar, COUNT(*) AS pending\nFROM complaint c\nJOIN status_master s ON s.id = c.status_id AND s.status_code NOT IN ('RESOLVED', 'CLOSED_INVALID', 'CLOSED')\nJOIN department_master d ON d.id = c.department_id\nLEFT JOIN ward_master w ON w.id = c.ward_id\nWHERE (:department_id IS NULL OR c.department_id = :department_id)\n  AND (:ward_id IS NULL OR c.ward_id = :ward_id)\nGROUP BY d.id, d.department_name, d.department_name_mar\nORDER BY pending DESC;",
+    "sql_template": "SELECT d.department_name_mar AS \"विभाग\", d.department_name AS \"Department Name\", COALESCE(w.ward_name_mar, 'अनिर्दिष्ट / मुख्यालय') AS \"क्षेत्रीय कार्यालय\", COALESCE(w.ward_name, 'Unassigned / HQ') AS \"Ward Name\", COUNT(*) AS \"Complaint Count\"\nFROM complaint c\nJOIN status_master s ON s.id = c.status_id\nJOIN department_master d ON d.id = c.department_id\nLEFT JOIN ward_master w ON w.id = c.ward_id\nWHERE (:department_id IS NULL OR c.department_id = :department_id)\n  AND (:ward_id IS NULL OR c.ward_id = :ward_id)\n  AND (:status_id IS NULL OR c.status_id = :status_id)\nGROUP BY d.id, d.department_name, d.department_name_mar, w.id, w.ward_name, w.ward_name_mar\nORDER BY \"Complaint Count\" DESC;",
     "is_verified": false
   },
   {

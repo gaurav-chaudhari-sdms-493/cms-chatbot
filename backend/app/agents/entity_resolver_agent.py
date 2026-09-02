@@ -223,6 +223,72 @@ class EntityResolverAgent:
         return None
 
     @classmethod
+    def contextualize_query(
+        cls,
+        user_query: str,
+        session_history: Optional[List[Dict[str, Any]]] = None
+    ) -> str:
+        """
+        If session_history exists, rewrites short follow-up or ambiguous queries
+        (e.g., 'all complains', 'yes', 'resolved ones', 'how many in kothrud')
+        into a complete, self-contained standalone question incorporating past context.
+        """
+        if not session_history:
+            return user_query
+
+        words = user_query.strip().split()
+        is_short_followup = len(words) <= 6 or any(w.lower() in ["yes", "yeah", "ha", "ho", "sure", "all", "complaints", "complains", "resolved", "pending", "show", "details"] for w in words)
+        
+        if not is_short_followup:
+            return user_query
+
+        history_lines = []
+        for m in session_history[-6:]:
+            line = f"{m.get('sender')}: {m.get('content')}"
+            if m.get('sql_used'):
+                line += f" [SQL: {m.get('sql_used')}]"
+            history_lines.append(line)
+
+        history_str = "\n".join(history_lines)
+
+        prompt = f"""You are a Query Contextualizer for Pune Municipal Corporation (PMC) Grievance System.
+Given the previous conversation history and the latest user query, rewrite the latest query into a standalone, self-contained search question.
+Ensure all active entity context (such as department e.g. Road, category e.g. Potholes, ward e.g. Kothrud, status e.g. pending/resolved) from history is preserved in the rewritten question.
+
+EXAMPLES:
+1. History:
+   user: pothole complaints
+   agent: ? Follow-Up Question: How many pending complaints for pothole?
+   user: yes
+   agent: Total Complaint Count: 282 [SQL: SELECT ... WHERE department_id = 2 ...]
+   Latest User Query: "all complains"
+   Rewritten Question: all complaints for potholes in Road department
+
+2. History:
+   user: water supply complaints in kothrud
+   Latest User Query: "show resolved"
+   Rewritten Question: resolved water supply complaints in Kothrud ward
+
+CONVERSATION HISTORY:
+{history_str}
+
+LATEST USER QUERY: "{user_query}"
+
+Respond strictly with ONLY the rewritten standalone question string (no explanations, no quotes):"""
+
+        try:
+            msg = call_openrouter_api(prompt, models=["meta-llama/llama-3.3-70b-instruct", "google/gemini-2.5-flash"])
+            if msg and isinstance(msg, dict):
+                rewritten = msg.get("content", "").strip().strip('"').strip("'")
+                if rewritten and len(rewritten) > 2 and rewritten.lower() != user_query.lower():
+                    logger.info(f"Contextualized user query from '{user_query}' -> '{rewritten}'")
+                    return rewritten
+        except Exception as err:
+            logger.warning(f"Failed to contextualize query: {err}")
+
+        return user_query
+
+    @classmethod
     def evaluate_query_with_llm(
         cls,
         user_query: str,
@@ -249,7 +315,13 @@ class EntityResolverAgent:
 
         history_str = ""
         if session_history:
-            history_str = "\n".join([f"{m.get('sender')}: {m.get('content')}" for m in session_history[-6:]])
+            history_lines = []
+            for m in session_history[-6:]:
+                line = f"{m.get('sender')}: {m.get('content')}"
+                if m.get('sql_used'):
+                    line += f" [SQL: {m.get('sql_used')}]"
+                history_lines.append(line)
+            history_str = "\n".join(history_lines)
 
         prompt = f"""
 You are the OpenRouter Query Selector and Entity Resolution AI for Pune Municipal Corporation (PMC) Grievance System.
@@ -263,10 +335,13 @@ CANDIDATE CANONICAL TEMPLATES:
 {json.dumps(templates_summary, indent=2)}
 
 SYSTEM RULES:
-1. ONLY declare "OUT_OF_SCOPE" if question asks to modify/delete data, initiate HR actions, or non-PMC trivia.
-2. Select template ID whose functional intent best matches the officer's query.
-3. Extract bound parameters from question & chat history. If numeric limit is not specified, leave limit null.
-4. If candidate template matches and has no missing required parameters, set status to "EXECUTE".
+1. ONLY declare "OUT_OF_SCOPE" if question explicitly asks to modify/delete data, initiate HR actions, or non-PMC general trivia.
+2. MULTI-TURN CONTEXT & CONTEXT INHERITANCE:
+   - When previous conversation history established a specific entity focus (such as department e.g. "Road", category e.g. "Potholes", ward e.g. "Kothrud", or status), and the officer asks a follow-up ("all complains", "yes", "resolved ones", "how many", "show breakdown"), YOU MUST INHERIT those entity values into `bound_parameters`.
+   - E.g. If previous turns were about pothole complaints (Road department) and officer says "all complains", set `bound_parameters` to include {{"department": "Road"}} or {{"category": "Potholes"}} and select the template for department/category complaints.
+3. Select template ID whose functional intent best matches the officer's query and accumulated context.
+4. Extract bound parameters from question & chat history. Always extract target entity terms specified by the user (e.g. for "pending complaints for glass", extract {{"category": "glass"}} or {{"department": "glass"}}), even if you are unsure whether it exists in master tables.
+5. If candidate template matches and has no missing required parameters, set status to "EXECUTE".
 
 Respond strictly with valid JSON:
 {{
@@ -278,7 +353,7 @@ Respond strictly with valid JSON:
 }}
 """
         try:
-            msg = call_openrouter_api(prompt, models=["meta-llama/llama-3.3-70b-instruct"])
+            msg = call_openrouter_api(prompt, models=["meta-llama/llama-3.3-70b-instruct", "google/gemini-2.5-flash"])
             if msg and isinstance(msg, dict):
                 content = msg.get("content", "").strip()
                 if "```json" in content:
