@@ -223,175 +223,70 @@ export const MarkdownReport: React.FC<Props> = ({ data, onSelectOption }) => {
         </div>
       </div>
 
-      {/* Collapsible Info (i) Template Details Card - Rendered at bottom of Info (i) button */}
+      {/* Collapsible Info (i) Details Card - Clean Executed SQL view */}
       {showTemplateInfo && (
         <div style={{
           background: 'var(--bg-card-hover)',
           border: '1px solid rgba(139, 92, 246, 0.3)',
           borderRadius: '12px',
-          padding: '16px 18px',
-          marginTop: '14px',
+          padding: '14px 16px',
+          marginTop: '12px',
           display: 'flex',
           flexDirection: 'column',
-          gap: '14px',
+          gap: '10px',
           animation: 'fadeIn 0.2s ease-in-out'
         }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <Cpu size={16} color="var(--accent-purple)" />
-              <span style={{ fontSize: '13px', fontWeight: 700, color: 'var(--text-primary)' }}>
-                LLM Query Template Selection & Candidate Info
-              </span>
-            </div>
-            <span style={{
-              background: 'linear-gradient(135deg, #8b5cf6 0%, #6366f1 100%)',
-              color: '#ffffff',
-              padding: '3px 10px',
-              borderRadius: '12px',
-              fontSize: '11px',
-              fontWeight: 700,
-              letterSpacing: '0.04em'
-            }}>
-              {data.template_id || 'OPENROUTER_DYNAMIC'}
-            </span>
-          </div>
-
-          <div style={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
-            gap: '12px',
-            fontSize: '12px',
-            color: 'var(--text-secondary)'
-          }}>
-            <div>
-              <strong style={{ color: 'var(--text-primary)' }}>Selected Template:</strong>{' '}
-              <code>{data.template_id || 'Canonical Dynamic Match'}</code>
-            </div>
-            <div>
-              <strong style={{ color: 'var(--text-primary)' }}>Retrieval Model:</strong>{' '}
-              <span>E5 Multilingual Dense + BM25 RRF</span>
-            </div>
-            <div>
-              <strong style={{ color: 'var(--text-primary)' }}>LLM Engine:</strong>{' '}
-              <span>OpenRouter Pipeline</span>
-            </div>
-          </div>
-
-          {/* Top 5 candidate templates provided to LLM */}
-          {data.candidate_templates && data.candidate_templates.length > 0 && (
-            <div style={{ marginTop: '4px' }}>
-              <div style={{
-                fontSize: '11px',
-                fontWeight: 700,
-                color: 'var(--accent-purple)',
-                textTransform: 'uppercase',
-                letterSpacing: '0.05em',
-                marginBottom: '8px',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '6px'
-              }}>
-                <Layers size={13} />
-                TOP CANDIDATE TEMPLATES PROVIDED TO LLM ({data.candidate_templates.length}):
-              </div>
-
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                {data.candidate_templates.map((cand, idx) => {
-                  const isSelected = cand.template_id === data.template_id;
-                  return (
-                    <div
-                      key={cand.template_id}
-                      style={{
-                        background: isSelected ? 'rgba(139, 92, 246, 0.12)' : 'rgba(255, 255, 255, 0.03)',
-                        border: isSelected ? '1px solid rgba(139, 92, 246, 0.4)' : '1px solid var(--border-color)',
-                        borderRadius: '8px',
-                        padding: '8px 12px',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'space-between',
-                        gap: '10px'
-                      }}
-                    >
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                          <span style={{ fontSize: '12px', fontWeight: 700, color: isSelected ? 'var(--accent-purple)' : 'var(--text-primary)' }}>
-                            #{idx + 1} {cand.template_id}
-                          </span>
-                          <span style={{ fontSize: '11px', color: 'var(--text-muted)', fontStyle: 'italic' }}>
-                            ({cand.intent})
-                          </span>
-                          {isSelected && (
-                            <span style={{
-                              background: '#10b981',
-                              color: '#ffffff',
-                              fontSize: '10px',
-                              fontWeight: 700,
-                              padding: '2px 8px',
-                              borderRadius: '6px',
-                              display: 'inline-flex',
-                              alignItems: 'center',
-                              gap: '4px'
-                            }}>
-                              <CheckCircle2 size={10} /> SELECTED BY LLM
-                            </span>
-                          )}
-                        </div>
-                        <div style={{ fontSize: '11px', color: 'var(--text-secondary)', lineHeight: 1.4 }}>
-                          "{cand.question_template}"
-                        </div>
-                      </div>
-                      <div style={{ fontSize: '11px', fontWeight: 600, color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>
-                        RRF Score: {cand.score}
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          )}
-
-          {/* Executed SQL query preview if present */}
           {data.sql_used && (
-            <div style={{ marginTop: '6px', borderTop: '1px solid var(--border-color)', paddingTop: '12px' }}>
+            <div>
               <div style={{
                 display: 'flex',
                 justifyContent: 'space-between',
                 alignItems: 'center',
-                marginBottom: '6px'
+                marginBottom: '8px'
               }}>
-                <span style={{ fontSize: '11px', fontWeight: 600, color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: '5px' }}>
-                  <Database size={12} color="var(--accent-blue)" />
-                  EXECUTED PARAMETERIZED SQL
+                <span style={{ fontSize: '12px', fontWeight: 700, color: 'var(--accent-blue)', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <Database size={14} color="var(--accent-blue)" />
+                  EXECUTED SQL
                 </span>
-                <button
-                  onClick={handleCopySql}
-                  style={{
-                    background: 'transparent',
-                    border: 'none',
-                    color: copiedSql ? '#10b981' : 'var(--text-secondary)',
-                    cursor: 'pointer',
-                    fontSize: '11px',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '4px'
-                  }}
-                >
-                  {copiedSql ? <Check size={12} /> : <Copy size={12} />}
-                  {copiedSql ? 'Copied' : 'Copy SQL'}
-                </button>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                  {data.template_id && (
+                    <span style={{ fontSize: '11px', color: 'var(--text-secondary)', background: 'rgba(139, 92, 246, 0.12)', padding: '2px 8px', borderRadius: '6px', border: '1px solid rgba(139, 92, 246, 0.2)', fontWeight: 600 }}>
+                      Template: {data.template_id}
+                    </span>
+                  )}
+                  <button
+                    onClick={handleCopySql}
+                    style={{
+                      background: 'transparent',
+                      border: '1px solid var(--border-color)',
+                      borderRadius: '6px',
+                      padding: '3px 9px',
+                      color: copiedSql ? '#10b981' : 'var(--text-secondary)',
+                      cursor: 'pointer',
+                      fontSize: '11px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '4px',
+                      fontWeight: 600
+                    }}
+                  >
+                    {copiedSql ? <Check size={12} /> : <Copy size={12} />}
+                    {copiedSql ? 'Copied' : 'Copy'}
+                  </button>
+                </div>
               </div>
               <pre style={{
                 background: 'rgba(0, 0, 0, 0.4)',
                 border: '1px solid var(--border-color)',
                 borderRadius: '8px',
-                padding: '10px 12px',
+                padding: '12px 14px',
                 margin: 0,
-                fontSize: '11px',
+                fontSize: '12.5px',
                 color: '#38bdf8',
                 fontFamily: 'monospace',
                 whiteSpace: 'pre-wrap',
                 overflowX: 'auto',
-                maxHeight: '160px'
+                maxHeight: '220px'
               }}>
                 {data.sql_used}
               </pre>
