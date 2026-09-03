@@ -1,33 +1,170 @@
 import React, { useState, useEffect, useRef } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
-import { Info, X, Database, Cpu, Clock, Copy, Check, Sparkles, Layers, CheckCircle2, Send, Search } from 'lucide-react';
+import { Info, X, Database, Cpu, Clock, Copy, Check, Sparkles, Layers, CheckCircle2, Send, Search, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, Loader2 } from 'lucide-react';
 import { AgentQueryResponse } from '../types';
-import { fetchReferenceOptions } from '../services/api';
+import { fetchReferenceOptions, fetchQueryPage } from '../services/api';
 
 interface Props {
   data: AgentQueryResponse;
   onSelectOption?: (optionLabel: string) => void;
 }
 
+// SQL Pretty Formatter Helper
+const formatSql = (sql: string): string => {
+  if (!sql) return '';
+  let str = sql.trim();
+  if (!str.includes('\n')) {
+    str = str.replace(/\s+/g, ' ');
+    str = str.replace(/\bSELECT\s+/gi, 'SELECT\n  ');
+    str = str.replace(/\bFROM\s+/gi, '\nFROM ');
+    str = str.replace(/\b((?:INNER|LEFT|RIGHT|FULL|CROSS)?\s*JOIN)\s+/gi, '\n$1 ');
+    str = str.replace(/\bON\s+/gi, '\n  ON ');
+    str = str.replace(/\bWHERE\s+/gi, '\nWHERE ');
+    str = str.replace(/\bAND\s+/gi, '\n  AND ');
+    str = str.replace(/\bOR\s+/gi, '\n  OR ');
+    str = str.replace(/\bGROUP\s+BY\s+/gi, '\nGROUP BY ');
+    str = str.replace(/\bORDER\s+BY\s+/gi, '\nORDER BY ');
+    str = str.replace(/\bLIMIT\s+/gi, '\nLIMIT ');
+    str = str.replace(/\bHAVING\s+/gi, '\nHAVING ');
+
+    const fromIndex = str.indexOf('\nFROM ');
+    if (fromIndex > 0) {
+      const selectPart = str.substring(0, fromIndex);
+      const restPart = str.substring(fromIndex);
+      const formattedSelect = selectPart.replace(/,\s*/g, ',\n  ');
+      str = formattedSelect + restPart;
+    }
+  }
+  return str.trim();
+};
+
+// Vibrant IDE-Style SQL Syntax Shower Component
+const SqlSyntaxHighlighter: React.FC<{ code: string }> = ({ code }) => {
+  const [copied, setCopied] = useState(false);
+  const formattedCode = formatSql(code);
+
+  const handleCopy = () => {
+    navigator.clipboard.writeText(formattedCode);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+
+  const tokenRegex = /(--[^\n]*|\/\*[\s\S]*?\*\/|'(?:''|[^'])*'|"(?:""|[^"])*"|\b(?:SELECT|FROM|WHERE|JOIN|INNER|LEFT|RIGHT|FULL|OUTER|CROSS|ON|AND|OR|GROUP BY|GROUP|ORDER BY|ORDER|BY|HAVING|LIMIT|OFFSET|AS|IN|IS|NOT|NULL|LIKE|ILIKE|CASE|WHEN|THEN|ELSE|END|UNION|ALL|INSERT|UPDATE|DELETE|INTO|VALUES|SET)\b|\b(?:LOWER|UPPER|COUNT|SUM|AVG|MAX|MIN|COALESCE|DATE_TRUNC|CONCAT|NOW|CAST|SUBSTRING)\b|\b\d+(?:\.\d+)?\b|[a-zA-Z_][a-zA-Z0-9_]*|\s+|[^\s\a-zA-Z0-9_])/gi;
+
+  const keywords = new Set([
+    'SELECT', 'FROM', 'WHERE', 'JOIN', 'INNER', 'LEFT', 'RIGHT', 'FULL', 'OUTER', 'CROSS',
+    'ON', 'AND', 'OR', 'GROUP', 'ORDER', 'BY', 'HAVING', 'LIMIT', 'OFFSET', 'AS', 'IN',
+    'IS', 'NOT', 'NULL', 'LIKE', 'ILIKE', 'CASE', 'WHEN', 'THEN', 'ELSE', 'END', 'UNION',
+    'ALL', 'INSERT', 'UPDATE', 'DELETE', 'INTO', 'VALUES', 'SET'
+  ]);
+
+  const functions = new Set([
+    'LOWER', 'UPPER', 'COUNT', 'SUM', 'AVG', 'MAX', 'MIN', 'COALESCE', 'DATE_TRUNC', 'CONCAT', 'NOW', 'CAST', 'SUBSTRING'
+  ]);
+
+  const matches = formattedCode.match(tokenRegex) || [formattedCode];
+
+  const highlightedNodes = matches.map((token, index) => {
+    const upper = token.toUpperCase();
+    if (token.startsWith('--') || token.startsWith('/*')) {
+      return <span key={index} style={{ color: '#64748b', fontStyle: 'italic' }}>{token}</span>;
+    }
+    if ((token.startsWith("'") && token.endsWith("'")) || (token.startsWith('"') && token.endsWith('"'))) {
+      return <span key={index} style={{ color: '#34d399', fontWeight: 600 }}>{token}</span>;
+    }
+    if (/^\d+(?:\.\d+)?$/.test(token)) {
+      return <span key={index} style={{ color: '#f87171', fontWeight: 600 }}>{token}</span>;
+    }
+    if (keywords.has(upper)) {
+      return <span key={index} style={{ color: '#a78bfa', fontWeight: 700 }}>{token}</span>;
+    }
+    if (functions.has(upper)) {
+      return <span key={index} style={{ color: '#fbbf24', fontWeight: 700 }}>{token}</span>;
+    }
+    if (/^[a-zA-Z_][a-zA-Z0-9_]*$/.test(token)) {
+      return <span key={index} style={{ color: '#38bdf8' }}>{token}</span>;
+    }
+    return <span key={index} style={{ color: '#94a3b8' }}>{token}</span>;
+  });
+
+  return (
+    <div style={{
+      position: 'relative',
+      background: '#0f172a',
+      border: '1px solid rgba(255, 255, 255, 0.15)',
+      borderRadius: '12px',
+      overflow: 'hidden',
+      margin: '10px 0',
+      boxShadow: '0 8px 24px rgba(0, 0, 0, 0.35)'
+    }}>
+      {/* IDE Header Bar */}
+      <div style={{
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        padding: '8px 14px',
+        background: 'rgba(255, 255, 255, 0.05)',
+        borderBottom: '1px solid rgba(255, 255, 255, 0.1)',
+        fontSize: '11px',
+        color: '#94a3b8',
+        fontFamily: 'sans-serif'
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+          <span style={{ width: '9px', height: '9px', borderRadius: '50%', background: '#ef4444', display: 'inline-block' }} />
+          <span style={{ width: '9px', height: '9px', borderRadius: '50%', background: '#f59e0b', display: 'inline-block' }} />
+          <span style={{ width: '9px', height: '9px', borderRadius: '50%', background: '#10b981', display: 'inline-block' }} />
+          <span style={{ fontWeight: 700, marginLeft: '8px', color: '#cbd5e1', letterSpacing: '0.04em', fontSize: '11px' }}>EXECUTED SQL</span>
+        </div>
+        <button
+          onClick={handleCopy}
+          style={{
+            background: 'rgba(255, 255, 255, 0.1)',
+            border: '1px solid rgba(255, 255, 255, 0.15)',
+            borderRadius: '6px',
+            padding: '3px 8px',
+            color: copied ? '#10b981' : '#e2e8f0',
+            cursor: 'pointer',
+            fontSize: '11px',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '4px',
+            fontWeight: 600,
+            transition: 'all 0.2s'
+          }}
+        >
+          {copied ? <Check size={12} /> : <Copy size={12} />}
+          {copied ? 'Copied' : 'Copy'}
+        </button>
+      </div>
+
+      <pre style={{
+        margin: 0,
+        padding: '14px 16px',
+        fontSize: '13px',
+        lineHeight: '1.65',
+        fontFamily: "'Fira Code', 'Cascadia Code', 'JetBrains Mono', 'Consolas', monospace",
+        whiteSpace: 'pre-wrap',
+        wordBreak: 'break-word',
+        overflowX: 'auto',
+        color: '#f8fafc',
+        maxHeight: '280px'
+      }}>
+        <code>{highlightedNodes}</code>
+      </pre>
+    </div>
+  );
+};
+
 export const MarkdownReport: React.FC<Props> = ({ data, onSelectOption }) => {
   const [showTemplateInfo, setShowTemplateInfo] = useState(false);
   const [copiedReport, setCopiedReport] = useState(false);
-  const [copiedSql, setCopiedSql] = useState(false);
 
   const handleCopyReport = () => {
     if (data.markdown_report) {
       navigator.clipboard.writeText(data.markdown_report);
       setCopiedReport(true);
       setTimeout(() => setCopiedReport(false), 2000);
-    }
-  };
-
-  const handleCopySql = () => {
-    if (data.sql_used) {
-      navigator.clipboard.writeText(data.sql_used);
-      setCopiedSql(true);
-      setTimeout(() => setCopiedSql(false), 2000);
     }
   };
 
@@ -57,14 +194,25 @@ export const MarkdownReport: React.FC<Props> = ({ data, onSelectOption }) => {
             remarkPlugins={[remarkGfm]}
             components={{
               table: ({ node, ...props }) => (
-                <SearchableTable questionText={data.question || data.markdown_report}>{props.children}</SearchableTable>
+                <SearchableTable questionText={data.question} reportText={data.markdown_report} sqlUsed={data.sql_used} serverTotal={data.total_records}>{props.children}</SearchableTable>
               ),
               th: ({ node, ...props }) => (
                 <th style={{ background: 'var(--bg-card-hover)', padding: '12px 14px', fontWeight: 700, fontSize: '12.5px', textTransform: 'uppercase', letterSpacing: '0.04em', color: 'var(--text-primary)', borderBottom: '2px solid var(--border-color)', textAlign: 'left', whiteSpace: 'nowrap' }} {...props} />
               ),
               td: ({ node, ...props }) => (
                 <SmartTableCell>{props.children}</SmartTableCell>
-              )
+              ),
+              code: ({ node, inline, className, children, ...props }: any) => {
+                const codeString = String(children).replace(/\n$/, '');
+                if (!inline && (codeString.toLowerCase().includes('select') || codeString.toLowerCase().includes('from') || className?.includes('sql'))) {
+                  return <SqlSyntaxHighlighter code={codeString} />;
+                }
+                return inline ? (
+                  <code style={{ background: 'var(--bg-card-hover)', padding: '2px 6px', borderRadius: '4px', fontSize: '13px', color: 'var(--accent-purple)', fontWeight: 600 }} {...props}>{children}</code>
+                ) : (
+                  <pre style={{ background: '#0f172a', color: '#f8fafc', padding: '12px 14px', borderRadius: '8px', fontSize: '13px', overflowX: 'auto' }}><code>{children}</code></pre>
+                );
+              }
             }}
           >
             {data.markdown_report}
@@ -159,7 +307,7 @@ export const MarkdownReport: React.FC<Props> = ({ data, onSelectOption }) => {
         </div>
       </div>
 
-      {/* Collapsible Info (i) Details Card - Clean Executed SQL view */}
+      {/* Collapsible Info (i) Details Card - Modern SQL Syntax Shower View */}
       {showTemplateInfo && (
         <div style={{
           background: 'var(--bg-card-hover)',
@@ -173,60 +321,7 @@ export const MarkdownReport: React.FC<Props> = ({ data, onSelectOption }) => {
           animation: 'fadeIn 0.2s ease-in-out'
         }}>
           {data.sql_used && (
-            <div>
-              <div style={{
-                display: 'flex',
-                justifyContent: 'space-between',
-                alignItems: 'center',
-                marginBottom: '8px'
-              }}>
-                <span style={{ fontSize: '12px', fontWeight: 700, color: 'var(--accent-blue)', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                  <Database size={14} color="var(--accent-blue)" />
-                  EXECUTED SQL
-                </span>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                  {data.template_id && (
-                    <span style={{ fontSize: '11px', color: 'var(--text-secondary)', background: 'rgba(139, 92, 246, 0.12)', padding: '2px 8px', borderRadius: '6px', border: '1px solid rgba(139, 92, 246, 0.2)', fontWeight: 600 }}>
-                      Template: {data.template_id}
-                    </span>
-                  )}
-                  <button
-                    onClick={handleCopySql}
-                    style={{
-                      background: 'transparent',
-                      border: '1px solid var(--border-color)',
-                      borderRadius: '6px',
-                      padding: '3px 9px',
-                      color: copiedSql ? '#10b981' : 'var(--text-secondary)',
-                      cursor: 'pointer',
-                      fontSize: '11px',
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '4px',
-                      fontWeight: 600
-                    }}
-                  >
-                    {copiedSql ? <Check size={12} /> : <Copy size={12} />}
-                    {copiedSql ? 'Copied' : 'Copy'}
-                  </button>
-                </div>
-              </div>
-              <pre style={{
-                background: 'rgba(0, 0, 0, 0.4)',
-                border: '1px solid var(--border-color)',
-                borderRadius: '8px',
-                padding: '12px 14px',
-                margin: 0,
-                fontSize: '12.5px',
-                color: '#38bdf8',
-                fontFamily: 'monospace',
-                whiteSpace: 'pre-wrap',
-                overflowX: 'auto',
-                maxHeight: '220px'
-              }}>
-                {data.sql_used}
-              </pre>
-            </div>
+            <SqlSyntaxHighlighter code={data.sql_used} />
           )}
         </div>
       )}
@@ -332,7 +427,7 @@ const TablePlotlyChart: React.FC<{
 };
 
 // Dynamic Real-Time Searchable Table & Auto-Charting Component
-const SearchableTable: React.FC<{ children?: React.ReactNode; questionText?: string }> = ({ children, questionText }) => {
+const SearchableTable: React.FC<{ children?: React.ReactNode; questionText?: string; reportText?: string; sqlUsed?: string; serverTotal?: number | null }> = ({ children, questionText, reportText, sqlUsed, serverTotal }) => {
   const [searchTerm, setSearchTerm] = useState('');
 
   const childrenArray = React.Children.toArray(children);
@@ -344,7 +439,7 @@ const SearchableTable: React.FC<{ children?: React.ReactNode; questionText?: str
   );
 
   const tbodyChildren = tbody && (tbody as any).props?.children;
-  const rows = React.Children.toArray(tbodyChildren);
+  const initialRows = React.Children.toArray(tbodyChildren);
 
   const getNodeText = (node: React.ReactNode): string => {
     if (!node) return '';
@@ -361,22 +456,81 @@ const SearchableTable: React.FC<{ children?: React.ReactNode; questionText?: str
   const thNodes = trHead ? React.Children.toArray((trHead as any).props?.children || trHead) : [];
   const headers = thNodes.map(node => getNodeText(node).trim());
 
-  const dataRows: string[][] = rows.map(rNode => {
+  const initialDataRows: string[][] = initialRows.map(rNode => {
     const tdNodes = React.Children.toArray((rNode as any).props?.children || []);
     return tdNodes.map(td => getNodeText(td).trim());
   });
+
+  // Extract server total records count if present in report text, question text, or serverTotal prop
+  const combinedText = (reportText || '') + ' ' + (questionText || '');
+  const totalMatch = combinedText.match(/(?:total records|TOTAL_RECORDS:)(?:[^\d]*)([\d,]+)/i);
+  const parsedTotalMatch = totalMatch ? parseInt(totalMatch[1].replace(/,/g, ''), 10) : 0;
+  const initialTotal = (serverTotal !== undefined && serverTotal !== null && serverTotal > 0)
+    ? serverTotal
+    : (parsedTotalMatch > 0 ? parsedTotalMatch : initialRows.length);
+
+  const [activeRows, setActiveRows] = useState<React.ReactNode[]>(initialRows);
+  const [activeDataRows, setActiveDataRows] = useState<string[][]>(initialDataRows);
+  const [serverTotalRecords, setServerTotalRecords] = useState<number>(initialTotal);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [rowsPerPage, setRowsPerPage] = useState(25);
+  const [isPageLoading, setIsPageLoading] = useState(false);
+
+  useEffect(() => {
+    setActiveRows(initialRows);
+    setActiveDataRows(initialDataRows);
+    const pTotal = (serverTotal !== undefined && serverTotal !== null && serverTotal > 0)
+      ? serverTotal
+      : (parsedTotalMatch > 0 ? parsedTotalMatch : 0);
+    if (pTotal > 0) {
+      setServerTotalRecords(pTotal);
+    } else if (sqlUsed) {
+      fetchQueryPage(sqlUsed, 1, 25).then(res => {
+        if (res.total_records > 0) setServerTotalRecords(res.total_records);
+      }).catch(() => {});
+    }
+  }, [children, serverTotal, reportText, questionText, sqlUsed]);
+
+  const handlePageChange = async (newPage: number, newPageSize: number = rowsPerPage) => {
+    if (!sqlUsed) {
+      setCurrentPage(newPage);
+      setRowsPerPage(newPageSize);
+      return;
+    }
+    setIsPageLoading(true);
+    try {
+      const res = await fetchQueryPage(sqlUsed, newPage, newPageSize);
+      const newRowElements = res.rows.map((rowArr, rIdx) => (
+        <tr key={rIdx}>
+          {rowArr.map((val, cIdx) => (
+            <SmartTableCell key={cIdx}>{val}</SmartTableCell>
+          ))}
+        </tr>
+      ));
+      setActiveRows(newRowElements);
+      setActiveDataRows(res.rows);
+      setServerTotalRecords(res.total_records);
+      setCurrentPage(res.page);
+      setRowsPerPage(res.page_size);
+    } catch (err) {
+      console.error('Server pagination error:', err);
+    } finally {
+      setIsPageLoading(false);
+    }
+  };
 
   // Identify label column & ALL metric numeric columns
   let labelColIdx = -1;
   let numericColIdxs: number[] = [];
 
-  if (headers.length >= 2 && dataRows.length > 0) {
+  if (headers.length >= 2 && activeDataRows.length > 0) {
     const numCols: number[] = [];
     const strCols: number[] = [];
 
-    headers.forEach((_, c) => {
-      const isNum = dataRows.every(r => r[c] !== undefined && r[c] !== null && r[c] !== '' && !isNaN(Number(r[c].replace(/,/g, '').replace(/%/g, ''))));
-      if (isNum) numCols.push(c);
+    headers.forEach((headerName, c) => {
+      const isNum = activeDataRows.every(r => r[c] !== undefined && r[c] !== null && r[c] !== '' && !isNaN(Number(r[c].replace(/,/g, '').replace(/%/g, ''))));
+      const isIdColumn = /(_id|\bid\b|token_no|complaint_number|pincode|zipcode)/i.test(headerName);
+      if (isNum && !isIdColumn) numCols.push(c);
       else strCols.push(c);
     });
 
@@ -384,9 +538,8 @@ const SearchableTable: React.FC<{ children?: React.ReactNode; questionText?: str
       labelColIdx = strCols[0];
       numericColIdxs = numCols;
     } else if (numCols.length >= 2) {
-      // Both/all columns are numeric (e.g., MONTH: 1..12, TOTAL_2025, TOTAL_2026)
-      labelColIdx = numCols[0];           // Column 0 as X-axis (e.g. Month)
-      numericColIdxs = numCols.slice(1);  // Column 1, 2, ... as Y-axis metrics
+      labelColIdx = numCols[0];
+      numericColIdxs = numCols.slice(1);
     } else if (headers.length >= 2) {
       labelColIdx = 0;
       numericColIdxs = [1];
@@ -406,17 +559,26 @@ const SearchableTable: React.FC<{ children?: React.ReactNode; questionText?: str
 
   const [viewMode, setViewMode] = useState<'table' | 'bar' | 'pie' | 'line'>(initialMode);
 
-  const filteredRows = rows.filter((rowNode) => {
+  const filteredRows = activeRows.filter((rowNode) => {
     if (!searchTerm.trim()) return true;
     const rowText = getNodeText(rowNode).toLowerCase();
     return rowText.includes(searchTerm.toLowerCase().trim());
   });
 
+  const effectiveTotal = Math.max(serverTotalRecords, filteredRows.length);
+  const totalPages = Math.ceil(effectiveTotal / rowsPerPage) || 1;
+  const safeCurrentPage = Math.min(Math.max(currentPage, 1), totalPages);
+
+  const isServerPaginated = Boolean(sqlUsed && serverTotalRecords > activeRows.length);
+  const startIndex = (safeCurrentPage - 1) * rowsPerPage;
+  const endIndex = Math.min(startIndex + activeRows.length, effectiveTotal);
+  const paginatedRows = isServerPaginated ? filteredRows : filteredRows.slice(startIndex, endIndex);
+
   // Prepare chart series arrays
-  const chartLabels = dataRows.map(r => r[labelColIdx] || '');
+  const chartLabels = activeDataRows.map(r => r[labelColIdx] || '');
   const seriesList = numericColIdxs.map(cIdx => ({
     name: headers[cIdx] || `Metric ${cIdx}`,
-    values: dataRows.map(r => Number((r[cIdx] || '0').replace(/,/g, '').replace(/%/g, '')))
+    values: activeDataRows.map(r => Number((r[cIdx] || '0').replace(/,/g, '').replace(/%/g, '')))
   }));
   const canChart = labelColIdx !== -1 && seriesList.length > 0 && chartLabels.length > 0;
 
@@ -559,7 +721,7 @@ const SearchableTable: React.FC<{ children?: React.ReactNode; questionText?: str
         )}
 
         <div style={{ fontSize: '11px', fontWeight: 600, color: 'var(--text-muted)', marginLeft: 'auto' }}>
-          {rows.length} records
+          {effectiveTotal.toLocaleString()} records
         </div>
       </div>
 
@@ -572,22 +734,170 @@ const SearchableTable: React.FC<{ children?: React.ReactNode; questionText?: str
           chartType={viewMode}
         />
       ) : (
-        <div style={{ overflowX: 'auto', width: '100%' }}>
-          <table style={{ width: '100%', borderCollapse: 'separate', borderSpacing: 0, fontSize: '13.5px' }}>
-            {thead}
-            <tbody>
-              {filteredRows.length > 0 ? (
-                filteredRows
-              ) : (
-                <tr>
-                  <td colSpan={100} style={{ padding: '24px 16px', textAlign: 'center', color: 'var(--text-secondary)', fontSize: '13px' }}>
-                    🔍 No table records match "<strong>{searchTerm}</strong>".
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
+        <>
+          <div style={{
+            overflowX: 'auto',
+            overflowY: 'auto',
+            maxHeight: '440px',
+            width: '100%',
+            position: 'relative'
+          }}>
+            <table style={{ width: '100%', borderCollapse: 'separate', borderSpacing: 0, fontSize: '13.5px' }}>
+              {thead}
+              <tbody>
+                {paginatedRows.length > 0 ? (
+                  paginatedRows
+                ) : (
+                  <tr>
+                    <td colSpan={100} style={{ padding: '24px 16px', textAlign: 'center', color: 'var(--text-secondary)', fontSize: '13px' }}>
+                      🔍 No table records match "<strong>{searchTerm}</strong>".
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+
+          {/* JetBrains DataGrip Floating Bottom Pagination Bar */}
+          {effectiveTotal > 0 && (
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              padding: '8px 14px',
+              background: 'var(--bg-card-hover)',
+              borderTop: '1px solid var(--border-color)',
+              fontSize: '12px',
+              color: 'var(--text-secondary)',
+              flexWrap: 'wrap',
+              gap: '10px'
+            }}>
+              {/* Left: Range Info & Per Page Selector */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <span>
+                  Showing <strong>{startIndex + 1} - {endIndex}</strong> of <strong>{effectiveTotal.toLocaleString()}</strong> records
+                </span>
+
+                <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                  <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>Per page:</span>
+                  <select
+                    value={rowsPerPage}
+                    onChange={(e) => handlePageChange(1, Number(e.target.value))}
+                    style={{
+                      background: 'var(--input-bg)',
+                      color: 'var(--text-primary)',
+                      border: '1px solid var(--border-color)',
+                      borderRadius: '6px',
+                      padding: '2px 6px',
+                      fontSize: '11.5px',
+                      cursor: 'pointer',
+                      outline: 'none'
+                    }}
+                  >
+                    <option value={25}>25</option>
+                    <option value={50}>50</option>
+                    <option value={100}>100</option>
+                    <option value={250}>250</option>
+                    <option value={500}>500</option>
+                  </select>
+                </div>
+              </div>
+
+              {/* Right: DataGrip Control Capsule */}
+              <div style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '4px',
+                background: 'var(--input-bg)',
+                border: '1px solid var(--border-color)',
+                borderRadius: '8px',
+                padding: '3px 8px'
+              }}>
+                {isPageLoading && (
+                  <span style={{ fontSize: '11px', color: 'var(--accent-blue)', display: 'flex', alignItems: 'center', gap: '4px', marginRight: '6px', fontWeight: 600 }}>
+                    <Loader2 size={12} className="animate-spin" /> Loading...
+                  </span>
+                )}
+
+                {/* First Page |< */}
+                <button
+                  disabled={currentPage <= 1 || isPageLoading}
+                  onClick={() => handlePageChange(1)}
+                  style={{
+                    background: 'transparent',
+                    border: 'none',
+                    color: currentPage <= 1 ? 'var(--text-muted)' : 'var(--text-primary)',
+                    cursor: currentPage <= 1 ? 'not-allowed' : 'pointer',
+                    padding: '2px 4px',
+                    display: 'flex',
+                    alignItems: 'center'
+                  }}
+                  title="First Page"
+                >
+                  <ChevronsLeft size={14} />
+                </button>
+
+                {/* Previous Page < */}
+                <button
+                  disabled={currentPage <= 1 || isPageLoading}
+                  onClick={() => handlePageChange(currentPage - 1)}
+                  style={{
+                    background: 'transparent',
+                    border: 'none',
+                    color: currentPage <= 1 ? 'var(--text-muted)' : 'var(--text-primary)',
+                    cursor: currentPage <= 1 ? 'not-allowed' : 'pointer',
+                    padding: '2px 4px',
+                    display: 'flex',
+                    alignItems: 'center'
+                  }}
+                  title="Previous Page"
+                >
+                  <ChevronLeft size={14} />
+                </button>
+
+                <span style={{ fontSize: '11.5px', fontWeight: 600, padding: '0 6px', color: 'var(--accent-blue)' }}>
+                  Page {currentPage} of {totalPages.toLocaleString()}
+                </span>
+
+                {/* Next Page > */}
+                <button
+                  disabled={currentPage >= totalPages || isPageLoading}
+                  onClick={() => handlePageChange(currentPage + 1)}
+                  style={{
+                    background: 'transparent',
+                    border: 'none',
+                    color: currentPage >= totalPages ? 'var(--text-muted)' : 'var(--text-primary)',
+                    cursor: currentPage >= totalPages ? 'not-allowed' : 'pointer',
+                    padding: '2px 4px',
+                    display: 'flex',
+                    alignItems: 'center'
+                  }}
+                  title="Next Page"
+                >
+                  <ChevronRight size={14} />
+                </button>
+
+                {/* Last Page >| */}
+                <button
+                  disabled={currentPage >= totalPages || isPageLoading}
+                  onClick={() => handlePageChange(totalPages)}
+                  style={{
+                    background: 'transparent',
+                    border: 'none',
+                    color: currentPage >= totalPages ? 'var(--text-muted)' : 'var(--text-primary)',
+                    cursor: currentPage >= totalPages ? 'not-allowed' : 'pointer',
+                    padding: '2px 4px',
+                    display: 'flex',
+                    alignItems: 'center'
+                  }}
+                  title="Last Page"
+                >
+                  <ChevronsRight size={14} />
+                </button>
+              </div>
+            </div>
+          )}
+        </>
       )}
     </div>
   );
@@ -600,7 +910,7 @@ const SmartTableCell: React.FC<{ children?: React.ReactNode }> = ({ children }) 
   const extractText = (node: React.ReactNode): string => {
     if (!node) return '';
     if (typeof node === 'string' || typeof node === 'number') return String(node);
-    if (Array.isArray(node)) return node.map(extractText).join('');
+    if (Array.isArray(node)) return node.map(extractText).join(' ');
     if (typeof node === 'object' && node !== null && 'props' in (node as any) && (node as any).props.children) {
       return extractText((node as any).props.children);
     }
@@ -608,8 +918,9 @@ const SmartTableCell: React.FC<{ children?: React.ReactNode }> = ({ children }) 
   };
 
   const rawText = extractText(children).trim();
-  const isLongText = rawText.length > 55;
-  const isShortCode = /^(W\d+|CMS\d+|DMS\d+|\d{4}-\d{2}-\d{2}|\d+:\d+:\d+|Resolved|Pending|Closed|Open|\d+)$/i.test(rawText);
+  const cleanSingleLine = rawText.replace(/\s+/g, ' ');
+  const isLongText = cleanSingleLine.length > 55;
+  const isShortCode = /^(W\d+|CMS\d+|DMS\d+|\d{4}-\d{2}-\d{2}|\d+:\d+:\d+|Resolved|Pending|Closed|Open|\d+)$/i.test(cleanSingleLine);
 
   return (
     <td
@@ -622,17 +933,22 @@ const SmartTableCell: React.FC<{ children?: React.ReactNode }> = ({ children }) 
         lineHeight: 1.5,
         whiteSpace: isShortCode ? 'nowrap' : 'normal',
         wordBreak: isShortCode ? 'normal' : 'break-word',
-        minWidth: isShortCode ? 'auto' : (isExpanded ? '320px' : '180px'),
-        maxWidth: isExpanded ? '550px' : '260px'
+        minWidth: isShortCode ? 'auto' : (isExpanded ? '280px' : '150px'),
+        maxWidth: isExpanded ? '450px' : '220px'
       }}
     >
       {!isLongText ? (
         children
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-          <span>
-            {isExpanded ? rawText : `${rawText.slice(0, 52)}...`}
-          </span>
+          <div style={{
+            maxHeight: isExpanded ? '140px' : 'none',
+            overflowY: isExpanded ? 'auto' : 'visible',
+            fontSize: '12.5px',
+            lineHeight: '1.45'
+          }}>
+            {isExpanded ? rawText : `${cleanSingleLine.slice(0, 52)}...`}
+          </div>
           <button
             onClick={(e) => {
               e.stopPropagation();

@@ -4,6 +4,7 @@ import { Header } from './components/Header';
 import { Sidebar } from './components/Sidebar';
 import { ChatStream } from './components/ChatStream';
 import { QueryInput, QueryMode } from './components/QueryInput';
+import { ChatWidget } from './components/ChatWidget';
 
 import { SuggestionCard } from './components/SuggestionCard';
 import { DynamicPlaceholderForm } from './components/DynamicPlaceholderForm';
@@ -22,6 +23,8 @@ import {
 } from './services/api';
 
 export const App: React.FC = () => {
+    const isEmbedOnly = window.location.search.includes('embed=true');
+
     const [activeTab, setActiveTab] = useState<'query' | 'developer'>(() => {
         return (localStorage.getItem('pmc_active_tab') as 'query' | 'developer') || 'query';
     });
@@ -29,9 +32,14 @@ export const App: React.FC = () => {
         return (localStorage.getItem('pmc_query_mode') as QueryMode) || 'agent';
     });
 
-    const [theme, setTheme] = useState<'dark' | 'light'>(() => {
-        return (localStorage.getItem('pmc_theme') as 'dark' | 'light') || 'light';
-    });
+    const getSystemTheme = (): 'dark' | 'light' => {
+        if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
+            return 'dark';
+        }
+        return 'light';
+    };
+
+    const [theme, setTheme] = useState<'dark' | 'light'>(getSystemTheme);
     const [isSettingsOpen, setIsSettingsOpen] = useState(false);
 
     // Sidebar & Multi-Chat States
@@ -53,10 +61,17 @@ export const App: React.FC = () => {
     const [executing, setExecuting] = useState(false);
     const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
-    // Sync theme, activeTab, and queryMode to localStorage & document root
+    // Dynamic System Theme Listener
     useEffect(() => {
-        localStorage.setItem('pmc_theme', theme);
         document.documentElement.setAttribute('data-theme', theme);
+        const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
+        const handleChange = (e: MediaQueryListEvent) => {
+            const newTheme = e.matches ? 'dark' : 'light';
+            setTheme(newTheme);
+            document.documentElement.setAttribute('data-theme', newTheme);
+        };
+        mediaQuery.addEventListener('change', handleChange);
+        return () => mediaQuery.removeEventListener('change', handleChange);
     }, [theme]);
 
     useEffect(() => {
@@ -200,6 +215,16 @@ export const App: React.FC = () => {
         }
     };
 
+    if (isEmbedOnly) {
+        return (
+            <ChatWidget
+                initialEmbed={true}
+                theme={theme}
+                onThemeToggle={() => setTheme(prev => prev === 'dark' ? 'light' : 'dark')}
+            />
+        );
+    }
+
     return (
         <div style={{ display: 'flex', width: '100vw', height: '100vh', background: 'var(--bg-dark)', overflow: 'hidden' }}>
             {/* Settings Modal */}
@@ -290,19 +315,24 @@ export const App: React.FC = () => {
                     </main>
                 </div>
 
-                {/* Sticky Bottom Query Input Bar (Officer Query View Only) */}
-                {activeTab === 'query' && (
-                    <QueryInput
-                        onSearch={handleSearch}
-                        loading={loading}
-                        activeMode={queryMode}
-                        onModeChange={(mode) => setQueryMode(mode)}
-                    />
-                )}
+            {/* Sticky Bottom Query Input Bar (Officer Query View Only) */}
+            {activeTab === 'query' && (
+                <QueryInput
+                    onSearch={handleSearch}
+                    loading={loading}
+                    activeMode={queryMode}
+                    onModeChange={(mode) => setQueryMode(mode)}
+                />
+            )}
 
-            </div>
+            {/* Embeddable Floating Side Chatbot Widget */}
+            <ChatWidget
+                theme={theme}
+                onThemeToggle={() => setTheme(prev => prev === 'dark' ? 'light' : 'dark')}
+            />
         </div>
-    );
+    </div>
+  );
 };
 
 export default App;

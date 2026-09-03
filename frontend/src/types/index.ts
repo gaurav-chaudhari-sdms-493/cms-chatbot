@@ -82,6 +82,7 @@ export interface AgentQueryResponse {
   execution_time_ms: number;
   retry_count: number;
   status: string;
+  total_records?: number | null;
 }
 
 export interface ChatMessageResponse {
@@ -93,6 +94,7 @@ export interface ChatMessageResponse {
   template_id?: string | null;
   candidate_templates?: CandidateTemplateDetail[] | null;
   execution_time_ms?: number | null;
+  total_records?: number | null;
   created_at: string;
 }
 

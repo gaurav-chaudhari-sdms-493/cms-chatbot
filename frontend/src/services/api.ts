@@ -25,6 +25,36 @@ export async function fetchSuggestions(queryText: string): Promise<SuggestRespon
   return await res.json();
 }
 
+export interface PageQueryResult {
+  columns: string[];
+  rows: any[][];
+  total_records: number;
+  page: number;
+  page_size: number;
+  total_pages: number;
+}
+
+export async function fetchQueryPage(
+  sqlQuery: string,
+  page: number = 1,
+  pageSize: number = 25
+): Promise<PageQueryResult> {
+  const res = await fetch(`${API_BASE_URL}/chat/query-page`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      sql_query: sqlQuery,
+      page: page,
+      page_size: pageSize
+    })
+  });
+  if (!res.ok) {
+    const errBody = await res.json().catch(() => ({ detail: 'Query page error' }));
+    throw new Error(errBody.detail || 'Query page error');
+  }
+  return await res.json();
+}
+
 export async function fetchReferenceOptions(sourceTable: string, search: string = '') {
   const url = search
     ? `${API_BASE_URL}/reference/${sourceTable}?q=${encodeURIComponent(search)}`

@@ -58,105 +58,50 @@ export const ChatStream: React.FC<Props> = ({ messages, loading, questionText, o
                 flexDirection: 'column',
                 alignItems: 'center',
                 justifyContent: 'center',
-                minHeight: '60vh',
-                padding: '32px 16px',
+                height: '100%',
+                maxHeight: '100%',
+                padding: '12px 10px',
                 textAlign: 'center',
-                maxWidth: '850px',
-                margin: '0 auto'
+                maxWidth: '650px',
+                margin: '0 auto',
+                boxSizing: 'border-box',
+                overflow: 'hidden'
             }}>
                 {/* Glowing Logo Badge */}
                 <div style={{
-                    width: '56px',
-                    height: '56px',
-                    borderRadius: '16px',
+                    width: '40px',
+                    height: '40px',
+                    borderRadius: '12px',
                     background: 'linear-gradient(135deg, #8b5cf6 0%, #6366f1 100%)',
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
-                    boxShadow: '0 8px 24px -4px rgba(139, 92, 246, 0.4)',
-                    marginBottom: '20px'
+                    boxShadow: '0 4px 16px -2px rgba(139, 92, 246, 0.4)',
+                    marginBottom: '8px',
+                    flexShrink: 0
                 }}>
-                    <Sparkles size={28} color="#ffffff" />
+                    <Sparkles size={20} color="#ffffff" />
                 </div>
 
                 {/* Welcome Greeting Header */}
-                <h1 style={{
-                    fontSize: '28px',
+                <h2 style={{
+                    fontSize: '18px',
                     fontWeight: 700,
                     color: 'var(--text-primary)',
-                    letterSpacing: '-0.02em',
-                    marginBottom: '8px'
+                    letterSpacing: '-0.01em',
+                    margin: '0 0 4px 0'
                 }}>
                     What would you like to analyze today?
-                </h1>
+                </h2>
                 <p style={{
-                    fontSize: '14px',
+                    fontSize: '13px',
                     color: 'var(--text-secondary)',
-                    maxWidth: '560px',
-                    lineHeight: 1.6,
-                    marginBottom: '36px'
+                    maxWidth: '480px',
+                    lineHeight: 1.5,
+                    margin: 0
                 }}>
-                    Stark AI provides autonomous natural language analytics over PMC municipal databases, officer SLA performance & department grievance records.
+                    PMC autonomous natural language analytics over municipal databases & officer performance records.
                 </p>
-
-                {/* 4 Interactive Quick Starter Cards */}
-                <div style={{
-                    display: 'grid',
-                    gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))',
-                    gap: '14px',
-                    width: '100%'
-                }}>
-                    {WELCOME_CARDS.map((card, idx) => {
-                        const Icon = card.icon;
-                        return (
-                            <div
-                                key={idx}
-                                onClick={() => onSelectExample && onSelectExample(card.prompt)}
-                                style={{
-                                    background: 'var(--bg-card)',
-                                    border: '1px solid var(--border-color)',
-                                    borderRadius: '14px',
-                                    padding: '18px 20px',
-                                    textAlign: 'left',
-                                    cursor: 'pointer',
-                                    transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
-                                    display: 'flex',
-                                    flexDirection: 'column',
-                                    gap: '8px'
-                                }}
-                                onMouseEnter={(e) => {
-                                    e.currentTarget.style.borderColor = card.color;
-                                    e.currentTarget.style.transform = 'translateY(-2px)';
-                                    e.currentTarget.style.boxShadow = `0 8px 20px -4px ${card.color}22`;
-                                }}
-                                onMouseLeave={(e) => {
-                                    e.currentTarget.style.borderColor = 'var(--border-color)';
-                                    e.currentTarget.style.transform = 'translateY(0)';
-                                    e.currentTarget.style.boxShadow = 'none';
-                                }}
-                            >
-                                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                                    <div style={{
-                                        padding: '8px',
-                                        borderRadius: '8px',
-                                        background: `${card.color}15`,
-                                        display: 'flex',
-                                        alignItems: 'center',
-                                        justifyContent: 'center'
-                                    }}>
-                                        <Icon size={18} color={card.color} />
-                                    </div>
-                                    <h3 style={{ fontSize: '14px', fontWeight: 600, color: 'var(--text-primary)', margin: 0 }}>
-                                        {card.title}
-                                    </h3>
-                                </div>
-                                <p style={{ fontSize: '12px', color: 'var(--text-secondary)', margin: 0, lineHeight: 1.4 }}>
-                                    {card.description}
-                                </p>
-                            </div>
-                        );
-                    })}
-                </div>
             </div>
         );
     }
@@ -203,6 +148,7 @@ export const ChatStream: React.FC<Props> = ({ messages, loading, questionText, o
                         template_id: msg.template_id,
                         candidate_templates: msg.candidate_templates,
                         execution_time_ms: msg.execution_time_ms || 0,
+                        total_records: msg.total_records,
                         retry_count: 0,
                         status: 'SUCCESS'
                     };
