@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
-import { Info, X, Database, Cpu, Clock, Copy, Check, Sparkles, Layers, CheckCircle2, ChevronDown, ChevronUp, Send, Search } from 'lucide-react';
+import { Info, X, Database, Cpu, Clock, Copy, Check, Sparkles, Layers, CheckCircle2, Send, Search } from 'lucide-react';
 import { AgentQueryResponse } from '../types';
 import { fetchReferenceOptions } from '../services/api';
 
@@ -14,16 +14,6 @@ export const MarkdownReport: React.FC<Props> = ({ data, onSelectOption }) => {
   const [showTemplateInfo, setShowTemplateInfo] = useState(false);
   const [copiedReport, setCopiedReport] = useState(false);
   const [copiedSql, setCopiedSql] = useState(false);
-  const [isExpanded, setIsExpanded] = useState(false);
-  const [isOverflowing, setIsOverflowing] = useState(false);
-  const contentRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    if (contentRef.current) {
-      const hasOverflow = contentRef.current.scrollHeight > 400;
-      setIsOverflowing(hasOverflow);
-    }
-  }, [data.markdown_report]);
 
   const handleCopyReport = () => {
     if (data.markdown_report) {
@@ -52,18 +42,14 @@ export const MarkdownReport: React.FC<Props> = ({ data, onSelectOption }) => {
       width: '100%'
     }}>
 
-      {/* Main Markdown Content Body with Extender / Collapsible Height */}
+      {/* Main Markdown Content Body */}
       <div style={{ position: 'relative', margin: '12px 0' }}>
         <div
-          ref={contentRef}
           className="agent-markdown-body"
           style={{
             color: 'var(--text-primary)',
             lineHeight: 1.7,
             fontSize: '15px',
-            maxHeight: isExpanded ? 'none' : '380px',
-            overflowY: isExpanded ? 'visible' : 'hidden',
-            transition: 'max-height 0.4s ease-in-out',
             position: 'relative'
           }}
         >
@@ -71,7 +57,7 @@ export const MarkdownReport: React.FC<Props> = ({ data, onSelectOption }) => {
             remarkPlugins={[remarkGfm]}
             components={{
               table: ({ node, ...props }) => (
-                <SearchableTable>{props.children}</SearchableTable>
+                <SearchableTable questionText={data.question || data.markdown_report}>{props.children}</SearchableTable>
               ),
               th: ({ node, ...props }) => (
                 <th style={{ background: 'var(--bg-card-hover)', padding: '12px 14px', fontWeight: 700, fontSize: '12.5px', textTransform: 'uppercase', letterSpacing: '0.04em', color: 'var(--text-primary)', borderBottom: '2px solid var(--border-color)', textAlign: 'left', whiteSpace: 'nowrap' }} {...props} />
@@ -84,57 +70,7 @@ export const MarkdownReport: React.FC<Props> = ({ data, onSelectOption }) => {
             {data.markdown_report}
           </ReactMarkdown>
         </div>
-
-        {/* Gradient Fade Overlay when collapsed and content overflows */}
-        {!isExpanded && isOverflowing && (
-          <div
-            style={{
-              position: 'absolute',
-              bottom: 0,
-              left: 0,
-              right: 0,
-              height: '90px',
-              background: 'linear-gradient(to bottom, transparent, var(--bg-card))',
-              pointerEvents: 'none',
-              borderRadius: '0 0 12px 12px'
-            }}
-          />
-        )}
       </div>
-
-      {/* Extender / Expand Button */}
-      {isOverflowing && (
-        <div style={{ display: 'flex', justifyContent: 'center', margin: '8px 0 16px' }}>
-          <button
-            onClick={() => setIsExpanded(!isExpanded)}
-            style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: '8px',
-              padding: '8px 20px',
-              borderRadius: '20px',
-              background: 'var(--bg-card-hover)',
-              border: '1px solid var(--border-color)',
-              color: 'var(--accent-blue)',
-              fontWeight: 600,
-              fontSize: '13px',
-              cursor: 'pointer',
-              boxShadow: '0 2px 8px rgba(0, 0, 0, 0.05)',
-              transition: 'all 0.2s ease'
-            }}
-          >
-            {isExpanded ? (
-              <>
-                <ChevronUp size={16} /> Show Less (Collapse View)
-              </>
-            ) : (
-              <>
-                <ChevronDown size={16} /> Show Full Report & All Records
-              </>
-            )}
-          </button>
-        </div>
-      )}
 
       {/* BOTTOM FOOTER METADATA & ACTIONS (ChatGPT Style Bottom Bar) */}
       <div style={{
@@ -303,8 +239,100 @@ export const MarkdownReport: React.FC<Props> = ({ data, onSelectOption }) => {
   );
 };
 
-// Dynamic Real-Time Searchable Table Component
-const SearchableTable: React.FC<{ children?: React.ReactNode }> = ({ children }) => {
+// Plotly Dynamic Multi-Series Comparison Chart Renderer for Markdown Tables
+const TablePlotlyChart: React.FC<{
+  labels: string[];
+  seriesList: { name: string; values: number[] }[];
+  labelName: string;
+  chartType: 'bar' | 'pie' | 'line';
+}> = ({ labels, seriesList, labelName, chartType }) => {
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!containerRef.current || !seriesList.length) return;
+    const Plotly = (window as any).Plotly;
+
+    if (Plotly) {
+      const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+      const fontColor = isDark ? '#e2e8f0' : '#1e293b';
+
+      const palette = ['#8b5cf6', '#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#ec4899', '#6366f1', '#14b8a6', '#06b6d4', '#84cc16'];
+
+      let dataTraces: any[] = [];
+
+      if (chartType === 'pie') {
+        const primarySeries = seriesList[0];
+        dataTraces = [{
+          labels: labels,
+          values: primarySeries.values,
+          type: 'pie',
+          name: primarySeries.name.replace(/_/g, ' '),
+          textinfo: 'label+percent',
+          hoverinfo: 'label+value+percent',
+          marker: { colors: palette }
+        }];
+      } else if (chartType === 'line') {
+        dataTraces = seriesList.map((s, idx) => ({
+          x: labels,
+          y: s.values,
+          name: s.name.replace(/_/g, ' '),
+          type: 'scatter',
+          mode: 'lines+markers',
+          marker: { color: palette[idx % palette.length], size: 8 },
+          line: { color: palette[idx % palette.length], width: 3 }
+        }));
+      } else {
+        // Grouped Comparison Bar Chart
+        dataTraces = seriesList.map((s, idx) => ({
+          x: labels,
+          y: s.values,
+          name: s.name.replace(/_/g, ' '),
+          type: 'bar',
+          marker: { color: palette[idx % palette.length] },
+          hovertemplate: `<b>%{x}</b><br>${s.name.replace(/_/g, ' ')}: %{y:,}<extra></extra>`
+        }));
+      }
+
+      const chartTitle = seriesList.length > 1
+        ? `Comparison (${seriesList.map(s => s.name.replace(/_/g, ' ')).join(' vs ')}) by ${labelName.replace(/_/g, ' ')}`
+        : `${seriesList[0].name.replace(/_/g, ' ')} by ${labelName.replace(/_/g, ' ')}`;
+
+      const layout = {
+        title: {
+          text: chartTitle,
+          font: { color: fontColor, size: 15, family: 'Inter, sans-serif' }
+        },
+        paper_bgcolor: 'transparent',
+        plot_bgcolor: 'transparent',
+        font: { color: fontColor, family: 'Inter, sans-serif' },
+        barmode: 'group',
+        legend: { orientation: 'h', y: 1.18, x: 0, font: { color: fontColor } },
+        margin: { t: 50, r: 20, l: 60, b: labels.some(l => l.length > 10) ? 90 : 50 },
+        xaxis: {
+          title: labelName.replace(/_/g, ' '),
+          tickangle: labels.some(l => l.length > 10) ? -40 : 0,
+          color: fontColor
+        },
+        yaxis: {
+          title: 'Value',
+          color: fontColor
+        },
+        autosize: true
+      };
+
+      Plotly.newPlot(containerRef.current, dataTraces, layout, { responsive: true, displayModeBar: false });
+    }
+  }, [labels, seriesList, labelName, chartType]);
+
+  return (
+    <div style={{ width: '100%', minHeight: '380px', padding: '12px', background: 'var(--bg-card)' }}>
+      <div ref={containerRef} style={{ width: '100%', minHeight: '360px' }} />
+    </div>
+  );
+};
+
+// Dynamic Real-Time Searchable Table & Auto-Charting Component
+const SearchableTable: React.FC<{ children?: React.ReactNode; questionText?: string }> = ({ children, questionText }) => {
   const [searchTerm, setSearchTerm] = useState('');
 
   const childrenArray = React.Children.toArray(children);
@@ -328,11 +356,69 @@ const SearchableTable: React.FC<{ children?: React.ReactNode }> = ({ children })
     return '';
   };
 
+  // Parse Headers & Row Values for Charting
+  const trHead = thead && (thead as any).props?.children;
+  const thNodes = trHead ? React.Children.toArray((trHead as any).props?.children || trHead) : [];
+  const headers = thNodes.map(node => getNodeText(node).trim());
+
+  const dataRows: string[][] = rows.map(rNode => {
+    const tdNodes = React.Children.toArray((rNode as any).props?.children || []);
+    return tdNodes.map(td => getNodeText(td).trim());
+  });
+
+  // Identify label column & ALL metric numeric columns
+  let labelColIdx = -1;
+  let numericColIdxs: number[] = [];
+
+  if (headers.length >= 2 && dataRows.length > 0) {
+    const numCols: number[] = [];
+    const strCols: number[] = [];
+
+    headers.forEach((_, c) => {
+      const isNum = dataRows.every(r => r[c] !== undefined && r[c] !== null && r[c] !== '' && !isNaN(Number(r[c].replace(/,/g, '').replace(/%/g, ''))));
+      if (isNum) numCols.push(c);
+      else strCols.push(c);
+    });
+
+    if (strCols.length > 0 && numCols.length > 0) {
+      labelColIdx = strCols[0];
+      numericColIdxs = numCols;
+    } else if (numCols.length >= 2) {
+      // Both/all columns are numeric (e.g., MONTH: 1..12, TOTAL_2025, TOTAL_2026)
+      labelColIdx = numCols[0];           // Column 0 as X-axis (e.g. Month)
+      numericColIdxs = numCols.slice(1);  // Column 1, 2, ... as Y-axis metrics
+    } else if (headers.length >= 2) {
+      labelColIdx = 0;
+      numericColIdxs = [1];
+    }
+  }
+
+  // Determine initial view mode based on question keywords
+  const qLower = (questionText || '').toLowerCase();
+  const isChartRequested = qLower.includes('chart') || qLower.includes('graph') || qLower.includes('plot') || qLower.includes('bar') || qLower.includes('pie') || qLower.includes('distribution') || qLower.includes('trend') || qLower.includes('trends') || qLower.includes('comparison') || qLower.includes('compare') || qLower.includes('monthly') || qLower.includes('timeline') || qLower.includes('over time') || numericColIdxs.length > 1;
+
+  let initialMode: 'table' | 'bar' | 'pie' | 'line' = 'table';
+  if (isChartRequested && labelColIdx !== -1 && numericColIdxs.length > 0) {
+    if (qLower.includes('pie')) initialMode = 'pie';
+    else if (qLower.includes('line') || qLower.includes('trend') || qLower.includes('monthly') || qLower.includes('timeline') || qLower.includes('over time') || qLower.includes('comparison') || qLower.includes('compare')) initialMode = 'line';
+    else initialMode = 'bar';
+  }
+
+  const [viewMode, setViewMode] = useState<'table' | 'bar' | 'pie' | 'line'>(initialMode);
+
   const filteredRows = rows.filter((rowNode) => {
     if (!searchTerm.trim()) return true;
     const rowText = getNodeText(rowNode).toLowerCase();
     return rowText.includes(searchTerm.toLowerCase().trim());
   });
+
+  // Prepare chart series arrays
+  const chartLabels = dataRows.map(r => r[labelColIdx] || '');
+  const seriesList = numericColIdxs.map(cIdx => ({
+    name: headers[cIdx] || `Metric ${cIdx}`,
+    values: dataRows.map(r => Number((r[cIdx] || '0').replace(/,/g, '').replace(/%/g, '')))
+  }));
+  const canChart = labelColIdx !== -1 && seriesList.length > 0 && chartLabels.length > 0;
 
   return (
     <div style={{
@@ -343,7 +429,7 @@ const SearchableTable: React.FC<{ children?: React.ReactNode }> = ({ children })
       background: 'var(--bg-card)',
       overflow: 'hidden'
     }}>
-      {/* Table Toolbar Header Bar */}
+      {/* Table & Chart Toolbar Bar */}
       <div style={{
         padding: '10px 14px',
         background: 'var(--bg-card-hover)',
@@ -354,90 +440,155 @@ const SearchableTable: React.FC<{ children?: React.ReactNode }> = ({ children })
         flexWrap: 'wrap',
         gap: '10px'
       }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flex: 1, minWidth: '220px', position: 'relative' }}>
-          <Search size={15} color="var(--accent-blue)" style={{ position: 'absolute', left: '10px' }} />
-          <input
-            type="text"
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            placeholder="Search table by any keyword, officer, ward, status, complaint #..."
-            style={{
-              width: '100%',
-              padding: '6px 30px 6px 32px',
-              borderRadius: '8px',
-              background: 'var(--input-bg)',
-              color: 'var(--text-primary)',
-              border: '1px solid var(--border-color)',
-              fontSize: '12.5px',
-              outline: 'none'
-            }}
-          />
-          {searchTerm && (
+        {/* View Mode Switcher Chips */}
+        {canChart && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
             <button
-              onClick={() => setSearchTerm('')}
+              onClick={() => setViewMode('table')}
               style={{
-                position: 'absolute',
-                right: '8px',
-                background: 'transparent',
-                border: 'none',
-                color: 'var(--text-muted)',
+                background: viewMode === 'table' ? 'rgba(59, 130, 246, 0.2)' : 'transparent',
+                border: viewMode === 'table' ? '1px solid var(--accent-blue)' : '1px solid var(--border-color)',
+                color: viewMode === 'table' ? 'var(--accent-blue)' : 'var(--text-secondary)',
+                borderRadius: '6px',
+                padding: '4px 10px',
+                fontSize: '11.5px',
+                fontWeight: 600,
                 cursor: 'pointer',
                 display: 'flex',
-                alignItems: 'center'
+                alignItems: 'center',
+                gap: '5px'
               }}
-              title="Clear Search"
             >
-              <X size={14} />
+              📋 Table View
             </button>
-          )}
-        </div>
+            <button
+              onClick={() => setViewMode('bar')}
+              style={{
+                background: viewMode === 'bar' ? 'rgba(139, 92, 246, 0.2)' : 'transparent',
+                border: viewMode === 'bar' ? '1px solid var(--accent-purple)' : '1px solid var(--border-color)',
+                color: viewMode === 'bar' ? 'var(--accent-purple)' : 'var(--text-secondary)',
+                borderRadius: '6px',
+                padding: '4px 10px',
+                fontSize: '11.5px',
+                fontWeight: 600,
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '5px'
+              }}
+            >
+              📊 Bar Chart
+            </button>
+            <button
+              onClick={() => setViewMode('line')}
+              style={{
+                background: viewMode === 'line' ? 'rgba(99, 102, 241, 0.2)' : 'transparent',
+                border: viewMode === 'line' ? '1px solid #6366f1' : '1px solid var(--border-color)',
+                color: viewMode === 'line' ? '#6366f1' : 'var(--text-secondary)',
+                borderRadius: '6px',
+                padding: '4px 10px',
+                fontSize: '11.5px',
+                fontWeight: 600,
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '5px'
+              }}
+            >
+              📈 Line Trend
+            </button>
+            <button
+              onClick={() => setViewMode('pie')}
+              style={{
+                background: viewMode === 'pie' ? 'rgba(16, 185, 129, 0.2)' : 'transparent',
+                border: viewMode === 'pie' ? '1px solid #10b981' : '1px solid var(--border-color)',
+                color: viewMode === 'pie' ? '#10b981' : 'var(--text-secondary)',
+                borderRadius: '6px',
+                padding: '4px 10px',
+                fontSize: '11.5px',
+                fontWeight: 600,
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '5px'
+              }}
+            >
+              🥧 Pie Chart
+            </button>
+          </div>
+        )}
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '11px', fontWeight: 600, color: 'var(--text-secondary)' }}>
-          {searchTerm ? (
-            <span style={{ background: 'rgba(59, 130, 246, 0.15)', color: 'var(--accent-blue)', padding: '3px 9px', borderRadius: '12px' }}>
-              Showing {filteredRows.length} of {rows.length} rows
-            </span>
-          ) : (
-            <span style={{ color: 'var(--text-muted)' }}>
-              {rows.length} total records
-            </span>
-          )}
-        </div>
-      </div>
-
-      {/* Scrollable Table Area */}
-      <div style={{ overflowX: 'auto', width: '100%' }}>
-        <table style={{ width: '100%', borderCollapse: 'separate', borderSpacing: 0, fontSize: '13.5px' }}>
-          {thead}
-          <tbody>
-            {filteredRows.length > 0 ? (
-              filteredRows
-            ) : (
-              <tr>
-                <td colSpan={100} style={{ padding: '24px 16px', textAlign: 'center', color: 'var(--text-secondary)', fontSize: '13px' }}>
-                  🔍 No table records match "<strong>{searchTerm}</strong>".
-                  <button
-                    onClick={() => setSearchTerm('')}
-                    style={{
-                      marginLeft: '10px',
-                      background: 'rgba(59, 130, 246, 0.12)',
-                      color: 'var(--accent-blue)',
-                      border: 'none',
-                      borderRadius: '6px',
-                      padding: '3px 9px',
-                      fontSize: '11px',
-                      fontWeight: 600,
-                      cursor: 'pointer'
-                    }}
-                  >
-                    Clear Filter
-                  </button>
-                </td>
-              </tr>
+        {/* Search input (Table View Only) */}
+        {viewMode === 'table' && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flex: 1, minWidth: '200px', position: 'relative' }}>
+            <Search size={15} color="var(--accent-blue)" style={{ position: 'absolute', left: '10px' }} />
+            <input
+              type="text"
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              placeholder="Search table by any keyword..."
+              style={{
+                width: '100%',
+                padding: '5px 30px 5px 32px',
+                borderRadius: '8px',
+                background: 'var(--input-bg)',
+                color: 'var(--text-primary)',
+                border: '1px solid var(--border-color)',
+                fontSize: '12px',
+                outline: 'none'
+              }}
+            />
+            {searchTerm && (
+              <button
+                onClick={() => setSearchTerm('')}
+                style={{
+                  position: 'absolute',
+                  right: '8px',
+                  background: 'transparent',
+                  border: 'none',
+                  color: 'var(--text-muted)',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center'
+                }}
+              >
+                <X size={14} />
+              </button>
             )}
-          </tbody>
-        </table>
+          </div>
+        )}
+
+        <div style={{ fontSize: '11px', fontWeight: 600, color: 'var(--text-muted)', marginLeft: 'auto' }}>
+          {rows.length} records
+        </div>
       </div>
+
+      {/* Render Chart or Table */}
+      {viewMode !== 'table' && canChart ? (
+        <TablePlotlyChart
+          labels={chartLabels}
+          seriesList={seriesList}
+          labelName={headers[labelColIdx] || 'Label'}
+          chartType={viewMode}
+        />
+      ) : (
+        <div style={{ overflowX: 'auto', width: '100%' }}>
+          <table style={{ width: '100%', borderCollapse: 'separate', borderSpacing: 0, fontSize: '13.5px' }}>
+            {thead}
+            <tbody>
+              {filteredRows.length > 0 ? (
+                filteredRows
+              ) : (
+                <tr>
+                  <td colSpan={100} style={{ padding: '24px 16px', textAlign: 'center', color: 'var(--text-secondary)', fontSize: '13px' }}>
+                    🔍 No table records match "<strong>{searchTerm}</strong>".
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      )}
     </div>
   );
 };

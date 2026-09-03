@@ -218,7 +218,7 @@ async def post_chat_message(session_id: str, payload: ChatMessageRequest, db: Se
                 elif r_type == 'dataframe':
                     cols = get_field(r_data, 'columns') or []
                     rows = get_field(r_data, 'data') or []
-                    if cols and rows:
+                    if cols and rows and '|' not in markdown_report:
                         table_md = "| " + " | ".join(str(c) for c in cols) + " |\n"
                         table_md += "| " + " | ".join(["---"] * len(cols)) + " |\n"
                         for row in rows[:100]:
