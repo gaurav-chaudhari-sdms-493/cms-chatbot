@@ -169,6 +169,7 @@ class ChatMessage(Base):
     sql_used = Column(Text, nullable=True)
     template_id = Column(String(50), nullable=True)
     execution_time_ms = Column(Float, nullable=True)
+    total_records = Column(Integer, nullable=True)
     created_at = Column(
         DateTime(timezone=True),
         nullable=False,

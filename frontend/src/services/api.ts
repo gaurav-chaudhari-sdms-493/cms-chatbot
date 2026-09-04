@@ -34,10 +34,24 @@ export interface PageQueryResult {
   total_pages: number;
 }
 
+export interface ColumnValueItem {
+  value: string;
+  count: number;
+}
+
+export interface ColumnValuesResult {
+  column: string;
+  values: ColumnValueItem[];
+}
+
 export async function fetchQueryPage(
   sqlQuery: string,
   page: number = 1,
-  pageSize: number = 25
+  pageSize: number = 25,
+  searchTerm?: string,
+  sortColumn?: string,
+  sortDirection?: 'asc' | 'desc' | null,
+  columnFilters?: Record<string, string | string[]>
 ): Promise<PageQueryResult> {
   const res = await fetch(`${API_BASE_URL}/chat/query-page`, {
     method: 'POST',
@@ -45,12 +59,35 @@ export async function fetchQueryPage(
     body: JSON.stringify({
       sql_query: sqlQuery,
       page: page,
-      page_size: pageSize
+      page_size: pageSize,
+      search_term: searchTerm || null,
+      sort_column: sortColumn || null,
+      sort_direction: sortDirection || null,
+      column_filters: columnFilters || null
     })
   });
   if (!res.ok) {
     const errBody = await res.json().catch(() => ({ detail: 'Query page error' }));
     throw new Error(errBody.detail || 'Query page error');
+  }
+  return await res.json();
+}
+
+export async function fetchColumnValues(
+  sqlQuery: string,
+  columnName: string
+): Promise<ColumnValuesResult> {
+  const res = await fetch(`${API_BASE_URL}/chat/column-values`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      sql_query: sqlQuery,
+      column_name: columnName
+    })
+  });
+  if (!res.ok) {
+    const errBody = await res.json().catch(() => ({ detail: 'Fetch column values error' }));
+    throw new Error(errBody.detail || 'Fetch column values error');
   }
   return await res.json();
 }

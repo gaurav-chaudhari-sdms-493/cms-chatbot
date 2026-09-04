@@ -1,9 +1,9 @@
 import React, { useState, useEffect, useRef } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
-import { Info, X, Database, Cpu, Clock, Copy, Check, Sparkles, Layers, CheckCircle2, Send, Search, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, Loader2 } from 'lucide-react';
+import { Info, X, Database, Cpu, Clock, Copy, Check, Sparkles, Layers, CheckCircle2, Send, Search, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, Loader2, Filter } from 'lucide-react';
 import { AgentQueryResponse } from '../types';
-import { fetchReferenceOptions, fetchQueryPage } from '../services/api';
+import { fetchReferenceOptions, fetchQueryPage, fetchColumnValues, ColumnValueItem } from '../services/api';
 
 interface Props {
   data: AgentQueryResponse;
@@ -426,6 +426,278 @@ const TablePlotlyChart: React.FC<{
   );
 };
 
+// JetBrains DataGrip-Style Column Filter Popover Component
+const DataGripFilterPopover: React.FC<{
+  columnName: string;
+  sqlUsed?: string;
+  activeDataRows: string[][];
+  colIndex: number;
+  selectedValues: string[] | string;
+  onApplyFilter: (newSelected: string[]) => void;
+  onClose: () => void;
+  alignRight?: boolean;
+}> = ({ columnName, sqlUsed, activeDataRows, colIndex, selectedValues, onApplyFilter, onClose, alignRight }) => {
+  const [items, setItems] = useState<ColumnValueItem[]>([]);
+  const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [searchText, setSearchText] = useState<string>('');
+  const [checkedMap, setCheckedMap] = useState<Record<string, boolean>>({});
+  const popoverRef = useRef<HTMLDivElement>(null);
+
+  // Close on click outside
+  useEffect(() => {
+    const handleOutsideClick = (e: MouseEvent) => {
+      if (popoverRef.current && !popoverRef.current.contains(e.target as Node)) {
+        onClose();
+      }
+    };
+    document.addEventListener('mousedown', handleOutsideClick);
+    return () => document.removeEventListener('mousedown', handleOutsideClick);
+  }, [onClose]);
+
+  // Fetch distinct column values & counts
+  useEffect(() => {
+    let isMounted = true;
+    setIsLoading(true);
+
+    if (sqlUsed) {
+      fetchColumnValues(sqlUsed, columnName)
+        .then(res => {
+          if (!isMounted) return;
+          const valItems = res.values || [];
+          setItems(valItems);
+
+          const initialChecked: Record<string, boolean> = {};
+          const selectedSet = new Set(Array.isArray(selectedValues) ? selectedValues : (selectedValues ? [String(selectedValues)] : []));
+          const hasActiveFilter = selectedSet.size > 0;
+
+          valItems.forEach(item => {
+            initialChecked[item.value] = hasActiveFilter ? selectedSet.has(item.value) : true;
+          });
+          setCheckedMap(initialChecked);
+        })
+        .catch(err => {
+          console.error('Error fetching column values:', err);
+          if (!isMounted) return;
+          fallbackClientValues();
+        })
+        .finally(() => {
+          if (isMounted) setIsLoading(false);
+        });
+    } else {
+      fallbackClientValues();
+      setIsLoading(false);
+    }
+
+    function fallbackClientValues() {
+      const counts: Record<string, number> = {};
+      activeDataRows.forEach(row => {
+        const val = (row[colIndex] !== undefined && row[colIndex] !== null && row[colIndex] !== '') ? row[colIndex] : '(Blank / Null)';
+        counts[val] = (counts[val] || 0) + 1;
+      });
+      const valItems = Object.entries(counts).map(([value, count]) => ({ value, count })).sort((a, b) => b.count - a.count);
+      setItems(valItems);
+
+      const initialChecked: Record<string, boolean> = {};
+      const selectedSet = new Set(Array.isArray(selectedValues) ? selectedValues : (selectedValues ? [String(selectedValues)] : []));
+      const hasActiveFilter = selectedSet.size > 0;
+
+      valItems.forEach(item => {
+        initialChecked[item.value] = hasActiveFilter ? selectedSet.has(item.value) : true;
+      });
+      setCheckedMap(initialChecked);
+    }
+
+    return () => { isMounted = false; };
+  }, [columnName, sqlUsed, colIndex]);
+
+  const filteredItems = items.filter(item =>
+    item.value.toLowerCase().includes(searchText.toLowerCase().trim())
+  );
+
+  const allFilteredChecked = filteredItems.length > 0 && filteredItems.every(i => checkedMap[i.value]);
+  const someFilteredChecked = filteredItems.some(i => checkedMap[i.value]);
+
+  const handleToggleAll = () => {
+    const nextMap = { ...checkedMap };
+    const targetState = !allFilteredChecked;
+    filteredItems.forEach(i => {
+      nextMap[i.value] = targetState;
+    });
+    setCheckedMap(nextMap);
+    notifyChange(nextMap);
+  };
+
+  const handleToggleItem = (val: string) => {
+    const nextMap = { ...checkedMap, [val]: !checkedMap[val] };
+    setCheckedMap(nextMap);
+    notifyChange(nextMap);
+  };
+
+  const notifyChange = (nextMap: Record<string, boolean>) => {
+    const selected = items.filter(i => nextMap[i.value]).map(i => i.value);
+    if (selected.length === items.length || selected.length === 0) {
+      onApplyFilter([]);
+    } else {
+      onApplyFilter(selected);
+    }
+  };
+
+  return (
+    <div
+      ref={popoverRef}
+      onClick={(e) => e.stopPropagation()}
+      style={{
+        position: 'absolute',
+        top: '100%',
+        left: alignRight ? 'auto' : 0,
+        right: alignRight ? 0 : 'auto',
+        marginTop: '6px',
+        width: '260px',
+        maxHeight: '380px',
+        background: '#1e1f22',
+        border: '1px solid #393b40',
+        borderRadius: '8px',
+        boxShadow: '0 12px 28px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(255, 255, 255, 0.05)',
+        zIndex: 9999,
+        color: '#dfe1e5',
+        fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif",
+        fontSize: '12px',
+        display: 'flex',
+        flexDirection: 'column',
+        overflow: 'hidden'
+      }}
+    >
+      {/* Popover Title Header */}
+      <div style={{
+        padding: '10px 12px 8px 12px',
+        fontWeight: 600,
+        fontSize: '12.5px',
+        color: '#f0f3f6',
+        textAlign: 'center',
+        borderBottom: '1px solid rgba(255, 255, 255, 0.06)'
+      }}>
+        Local Filter For '{columnName}'
+      </div>
+
+      {/* Inline Search Box */}
+      <div style={{ padding: '8px 10px', position: 'relative' }}>
+        <Search size={13} color="#9da5b4" style={{ position: 'absolute', left: '18px', top: '16px' }} />
+        <input
+          type="text"
+          value={searchText}
+          onChange={(e) => setSearchText(e.target.value)}
+          placeholder=""
+          style={{
+            width: '100%',
+            padding: '5px 10px 5px 28px',
+            background: '#18191b',
+            border: '1px solid #3574f0',
+            borderRadius: '4px',
+            color: '#ffffff',
+            fontSize: '12px',
+            outline: 'none',
+            boxShadow: '0 0 0 2px rgba(53, 116, 240, 0.25)'
+          }}
+          autoFocus
+        />
+      </div>
+
+      {/* Header Row: Value & Count */}
+      <div style={{
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        padding: '6px 12px',
+        borderBottom: '1px solid #2b2d30',
+        fontSize: '11.5px',
+        color: '#9da5b4',
+        fontWeight: 600
+      }}>
+        <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', flex: 1 }}>
+          <input
+            type="checkbox"
+            checked={allFilteredChecked}
+            ref={(el) => {
+              if (el) el.indeterminate = someFilteredChecked && !allFilteredChecked;
+            }}
+            onChange={handleToggleAll}
+            style={{ accentColor: '#3574f0', cursor: 'pointer' }}
+          />
+          <span>Value</span>
+        </label>
+        <span>Count</span>
+      </div>
+
+      {/* Scrollable Checkbox List */}
+      <div style={{
+        flex: 1,
+        overflowY: 'auto',
+        maxHeight: '200px',
+        padding: '4px 0'
+      }}>
+        {isLoading ? (
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px', color: '#9da5b4', gap: '8px' }}>
+            <Loader2 size={16} className="animate-spin" />
+            <span>Loading values...</span>
+          </div>
+        ) : filteredItems.length === 0 ? (
+          <div style={{ padding: '16px', textAlign: 'center', color: '#9da5b4' }}>
+            No matching values
+          </div>
+        ) : (
+          filteredItems.map(item => {
+            const isChecked = Boolean(checkedMap[item.value]);
+            return (
+              <label
+                key={item.value}
+                onClick={(e) => e.stopPropagation()}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  padding: '5px 12px',
+                  cursor: 'pointer',
+                  userSelect: 'none',
+                  background: isChecked ? 'rgba(53, 116, 240, 0.08)' : 'transparent',
+                  transition: 'background 0.15s'
+                }}
+                onMouseEnter={(e) => (e.currentTarget.style.background = '#2b2d30')}
+                onMouseLeave={(e) => (e.currentTarget.style.background = isChecked ? 'rgba(53, 116, 240, 0.08)' : 'transparent')}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  <input
+                    type="checkbox"
+                    checked={isChecked}
+                    onChange={() => handleToggleItem(item.value)}
+                    style={{ accentColor: '#3574f0', cursor: 'pointer' }}
+                  />
+                  <span style={{ color: '#dfe1e5', textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap' }}>
+                    {item.value}
+                  </span>
+                </div>
+                <span style={{ color: '#9da5b4', fontSize: '11px', marginLeft: '12px', fontWeight: 500 }}>
+                  {item.count.toLocaleString()}
+                </span>
+              </label>
+            );
+          })
+        )}
+      </div>
+
+      {/* Footer */}
+      <div style={{
+        padding: '8px 12px',
+        borderTop: '1px solid #2b2d30',
+        fontSize: '11px',
+        color: '#9da5b4',
+        textAlign: 'left'
+      }}>
+        Select a checkbox to filter rows
+      </div>
+    </div>
+  );
+};
+
 // Dynamic Real-Time Searchable Table & Auto-Charting Component
 const SearchableTable: React.FC<{ children?: React.ReactNode; questionText?: string; reportText?: string; sqlUsed?: string; serverTotal?: number | null }> = ({ children, questionText, reportText, sqlUsed, serverTotal }) => {
   const [searchTerm, setSearchTerm] = useState('');
@@ -463,8 +735,8 @@ const SearchableTable: React.FC<{ children?: React.ReactNode; questionText?: str
 
   // Extract server total records count if present in report text, question text, or serverTotal prop
   const combinedText = (reportText || '') + ' ' + (questionText || '');
-  const totalMatch = combinedText.match(/(?:total records|TOTAL_RECORDS:)(?:[^\d]*)([\d,]+)/i);
-  const parsedTotalMatch = totalMatch ? parseInt(totalMatch[1].replace(/,/g, ''), 10) : 0;
+  const totalMatch = combinedText.match(/(?:([\d,]+)\s*total records|total records[^\d]*([\d,]+)|TOTAL_RECORDS:[^\d]*([\d,]+))/i);
+  const parsedTotalMatch = totalMatch ? parseInt((totalMatch[1] || totalMatch[2] || totalMatch[3]).replace(/,/g, ''), 10) : 0;
   const initialTotal = (serverTotal !== undefined && serverTotal !== null && serverTotal > 0)
     ? serverTotal
     : (parsedTotalMatch > 0 ? parsedTotalMatch : initialRows.length);
@@ -475,6 +747,12 @@ const SearchableTable: React.FC<{ children?: React.ReactNode; questionText?: str
   const [currentPage, setCurrentPage] = useState(1);
   const [rowsPerPage, setRowsPerPage] = useState(25);
   const [isPageLoading, setIsPageLoading] = useState(false);
+
+  // Column-wise Sorting & Filtering State
+  const [sortColIndex, setSortColIndex] = useState<number | null>(null);
+  const [sortDir, setSortDir] = useState<'asc' | 'desc' | null>(null);
+  const [columnFilters, setColumnFilters] = useState<Record<number, string[] | string>>({});
+  const [activePopoverColIdx, setActivePopoverColIdx] = useState<number | null>(null);
 
   useEffect(() => {
     setActiveRows(initialRows);
@@ -491,15 +769,44 @@ const SearchableTable: React.FC<{ children?: React.ReactNode; questionText?: str
     }
   }, [children, serverTotal, reportText, questionText, sqlUsed]);
 
-  const handlePageChange = async (newPage: number, newPageSize: number = rowsPerPage) => {
-    if (!sqlUsed) {
-      setCurrentPage(newPage);
-      setRowsPerPage(newPageSize);
-      return;
-    }
+  // Server-side Pagination, Sorting & Filtering Trigger
+  const fetchServerPage = async (
+    targetPage: number = currentPage,
+    targetPageSize: number = rowsPerPage,
+    targetSearch: string = searchTerm,
+    targetSortCol: number | null = sortColIndex,
+    targetSortDir: 'asc' | 'desc' | null = sortDir,
+    targetColFilters: Record<number, string[] | string> = columnFilters
+  ) => {
+    if (!sqlUsed) return;
     setIsPageLoading(true);
+
+    const colFilterByName: Record<string, string | string[]> = {};
+    Object.entries(targetColFilters).forEach(([cIdxStr, val]) => {
+      if (Array.isArray(val)) {
+        if (val.length > 0) {
+          const cName = headers[Number(cIdxStr)];
+          if (cName) colFilterByName[cName] = val;
+        }
+      } else if (val && String(val).trim()) {
+        const cName = headers[Number(cIdxStr)];
+        if (cName) colFilterByName[cName] = String(val).trim();
+      }
+    });
+
+    const sortColName = targetSortCol !== null ? headers[targetSortCol] : undefined;
+
     try {
-      const res = await fetchQueryPage(sqlUsed, newPage, newPageSize);
+      const res = await fetchQueryPage(
+        sqlUsed,
+        targetPage,
+        targetPageSize,
+        targetSearch,
+        sortColName,
+        targetSortDir,
+        colFilterByName
+      );
+
       const newRowElements = res.rows.map((rowArr, rIdx) => (
         <tr key={rIdx}>
           {rowArr.map((val, cIdx) => (
@@ -507,6 +814,7 @@ const SearchableTable: React.FC<{ children?: React.ReactNode; questionText?: str
           ))}
         </tr>
       ));
+
       setActiveRows(newRowElements);
       setActiveDataRows(res.rows);
       setServerTotalRecords(res.total_records);
@@ -516,6 +824,44 @@ const SearchableTable: React.FC<{ children?: React.ReactNode; questionText?: str
       console.error('Server pagination error:', err);
     } finally {
       setIsPageLoading(false);
+    }
+  };
+
+  // Debounced server search & column-filter effect across ALL pages
+  useEffect(() => {
+    if (!sqlUsed) return;
+    const timer = setTimeout(() => {
+      fetchServerPage(1, rowsPerPage, searchTerm, sortColIndex, sortDir, columnFilters);
+    }, 350);
+    return () => clearTimeout(timer);
+  }, [searchTerm, columnFilters, sqlUsed]);
+
+  const handlePageChange = (newPage: number, newPageSize: number = rowsPerPage) => {
+    if (sqlUsed) {
+      fetchServerPage(newPage, newPageSize, searchTerm, sortColIndex, sortDir, columnFilters);
+    } else {
+      setCurrentPage(newPage);
+      setRowsPerPage(newPageSize);
+    }
+  };
+
+  const handleHeaderClick = (colIdx: number) => {
+    let nextCol: number | null = colIdx;
+    let nextDir: 'asc' | 'desc' | null = 'asc';
+
+    if (sortColIndex === colIdx) {
+      if (sortDir === 'asc') nextDir = 'desc';
+      else if (sortDir === 'desc') {
+        nextCol = null;
+        nextDir = null;
+      }
+    }
+
+    setSortColIndex(nextCol);
+    setSortDir(nextDir);
+
+    if (sqlUsed) {
+      fetchServerPage(1, rowsPerPage, searchTerm, nextCol, nextDir, columnFilters);
     }
   };
 
@@ -559,20 +905,60 @@ const SearchableTable: React.FC<{ children?: React.ReactNode; questionText?: str
 
   const [viewMode, setViewMode] = useState<'table' | 'bar' | 'pie' | 'line'>(initialMode);
 
-  const filteredRows = activeRows.filter((rowNode) => {
-    if (!searchTerm.trim()) return true;
-    const rowText = getNodeText(rowNode).toLowerCase();
-    return rowText.includes(searchTerm.toLowerCase().trim());
+  // 1. Filter row indices by global search term AND column-wise filters (Fallback for client-side queries)
+  const filteredIndices = activeRows.map((_, idx) => idx).filter((rIdx) => {
+    if (sqlUsed) return true; // Server-side filtering already executed
+    const rowNode = activeRows[rIdx];
+    const dataRow = activeDataRows[rIdx] || [];
+
+    if (searchTerm.trim()) {
+      const rowText = getNodeText(rowNode).toLowerCase();
+      if (!rowText.includes(searchTerm.toLowerCase().trim())) return false;
+    }
+
+    for (const [colIdxStr, filterVal] of Object.entries(columnFilters)) {
+      const cIdx = Number(colIdxStr);
+      const cellVal = (dataRow[cIdx] || '').trim();
+      if (Array.isArray(filterVal)) {
+        if (filterVal.length > 0 && !filterVal.includes(cellVal)) return false;
+      } else if (filterVal && String(filterVal).trim()) {
+        if (!cellVal.toLowerCase().includes(String(filterVal).toLowerCase().trim())) return false;
+      }
+    }
+
+    return true;
   });
 
-  const effectiveTotal = Math.max(serverTotalRecords, filteredRows.length);
+  // 2. Sort filtered row indices by selected column & direction (Fallback for client-side queries)
+  const sortedIndices = [...filteredIndices].sort((aIdx, bIdx) => {
+    if (sqlUsed || sortColIndex === null || !sortDir) return 0; // Server-side sorting already executed
+
+    const valA = (activeDataRows[aIdx]?.[sortColIndex] || '').trim();
+    const valB = (activeDataRows[bIdx]?.[sortColIndex] || '').trim();
+
+    const numA = Number(valA.replace(/,/g, '').replace(/%/g, ''));
+    const numB = Number(valB.replace(/,/g, '').replace(/%/g, ''));
+
+    let comp = 0;
+    if (!isNaN(numA) && !isNaN(numB) && valA !== '' && valB !== '') {
+      comp = numA - numB;
+    } else {
+      comp = valA.localeCompare(valB, undefined, { numeric: true, sensitivity: 'base' });
+    }
+
+    return sortDir === 'asc' ? comp : -comp;
+  });
+
+  const processedRows = sortedIndices.map(rIdx => activeRows[rIdx]);
+
+  const effectiveTotal = Math.max(serverTotalRecords, processedRows.length);
   const totalPages = Math.ceil(effectiveTotal / rowsPerPage) || 1;
   const safeCurrentPage = Math.min(Math.max(currentPage, 1), totalPages);
 
   const isServerPaginated = Boolean(sqlUsed && serverTotalRecords > activeRows.length);
   const startIndex = (safeCurrentPage - 1) * rowsPerPage;
   const endIndex = Math.min(startIndex + activeRows.length, effectiveTotal);
-  const paginatedRows = isServerPaginated ? filteredRows : filteredRows.slice(startIndex, endIndex);
+  const paginatedRows = isServerPaginated ? processedRows : processedRows.slice(startIndex, endIndex);
 
   // Prepare chart series arrays
   const chartLabels = activeDataRows.map(r => r[labelColIdx] || '');
@@ -581,6 +967,100 @@ const SearchableTable: React.FC<{ children?: React.ReactNode; questionText?: str
     values: activeDataRows.map(r => Number((r[cIdx] || '0').replace(/,/g, '').replace(/%/g, '')))
   }));
   const canChart = labelColIdx !== -1 && seriesList.length > 0 && chartLabels.length > 0;
+
+  // Custom interactive Table Header with click-to-sort and per-column DataGrip filter popovers
+  const customThead = headers.length > 0 ? (
+    <thead>
+      <tr>
+        {headers.map((hName, cIdx) => {
+          const isSorted = sortColIndex === cIdx;
+          const currentFilter = columnFilters[cIdx];
+          const isFiltered = Array.isArray(currentFilter) ? currentFilter.length > 0 : Boolean(currentFilter && String(currentFilter).trim());
+          const alignRight = cIdx >= Math.floor(headers.length / 2) && headers.length > 2;
+
+          return (
+            <th
+              key={cIdx}
+              style={{
+                background: isSorted || isFiltered ? 'var(--bg-card-hover)' : 'var(--bg-card-hover)',
+                padding: '10px 14px',
+                fontWeight: 700,
+                fontSize: '12.5px',
+                textTransform: 'uppercase',
+                letterSpacing: '0.04em',
+                color: isSorted || isFiltered ? 'var(--accent-blue)' : 'var(--text-primary)',
+                borderBottom: '2px solid var(--border-color)',
+                textAlign: 'left',
+                whiteSpace: 'nowrap',
+                userSelect: 'none',
+                position: 'relative',
+                transition: 'all 0.2s ease'
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px' }}>
+                <div
+                  onClick={() => handleHeaderClick(cIdx)}
+                  style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer', flex: 1 }}
+                  title={`Click to sort by ${hName}`}
+                >
+                  <span>{hName}</span>
+                  <span style={{ fontSize: '11px', color: isSorted ? 'var(--accent-blue)' : 'var(--text-muted)' }}>
+                    {isSorted ? (sortDir === 'asc' ? '▲' : '▼') : '⇅'}
+                  </span>
+                </div>
+
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setActivePopoverColIdx(activePopoverColIdx === cIdx ? null : cIdx);
+                  }}
+                  style={{
+                    background: isFiltered ? 'rgba(53, 116, 240, 0.25)' : 'transparent',
+                    border: isFiltered ? '1px solid #3574f0' : 'none',
+                    borderRadius: '4px',
+                    padding: '2px 5px',
+                    cursor: 'pointer',
+                    color: isFiltered ? '#3574f0' : 'var(--text-muted)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    transition: 'all 0.2s ease'
+                  }}
+                  title={`Filter by ${hName}`}
+                >
+                  <Filter size={13} color={isFiltered ? '#3574f0' : 'var(--text-muted)'} />
+                </button>
+              </div>
+
+              {activePopoverColIdx === cIdx && (
+                <DataGripFilterPopover
+                  columnName={hName}
+                  sqlUsed={sqlUsed}
+                  activeDataRows={activeDataRows}
+                  colIndex={cIdx}
+                  selectedValues={columnFilters[cIdx] || []}
+                  alignRight={alignRight}
+                  onApplyFilter={(newVals) => {
+                    const newColFilters = { ...columnFilters };
+                    if (!newVals || newVals.length === 0) {
+                      delete newColFilters[cIdx];
+                    } else {
+                      newColFilters[cIdx] = newVals;
+                    }
+                    setColumnFilters(newColFilters);
+                    if (sqlUsed) {
+                      fetchServerPage(1, rowsPerPage, searchTerm, sortColIndex, sortDir, newColFilters);
+                    }
+                  }}
+                  onClose={() => setActivePopoverColIdx(null)}
+                />
+              )}
+            </th>
+          );
+        })}
+      </tr>
+    </thead>
+  ) : thead;
 
   return (
     <div style={{
@@ -680,41 +1160,62 @@ const SearchableTable: React.FC<{ children?: React.ReactNode; questionText?: str
           </div>
         )}
 
-        {/* Search input (Table View Only) */}
+        {/* Search input & Column Filter Toggle (Table View Only) */}
         {viewMode === 'table' && (
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flex: 1, minWidth: '200px', position: 'relative' }}>
-            <Search size={15} color="var(--accent-blue)" style={{ position: 'absolute', left: '10px' }} />
-            <input
-              type="text"
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              placeholder="Search table by any keyword..."
-              style={{
-                width: '100%',
-                padding: '5px 30px 5px 32px',
-                borderRadius: '8px',
-                background: 'var(--input-bg)',
-                color: 'var(--text-primary)',
-                border: '1px solid var(--border-color)',
-                fontSize: '12px',
-                outline: 'none'
-              }}
-            />
-            {searchTerm && (
-              <button
-                onClick={() => setSearchTerm('')}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flex: 1, minWidth: '240px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flex: 1, position: 'relative' }}>
+              <Search size={15} color="var(--accent-blue)" style={{ position: 'absolute', left: '10px' }} />
+              <input
+                type="text"
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                placeholder="Search table by any keyword..."
                 style={{
-                  position: 'absolute',
-                  right: '8px',
+                  width: '100%',
+                  padding: '5px 30px 5px 32px',
+                  borderRadius: '8px',
+                  background: 'var(--input-bg)',
+                  color: 'var(--text-primary)',
+                  border: '1px solid var(--border-color)',
+                  fontSize: '12px',
+                  outline: 'none'
+                }}
+              />
+              {searchTerm && (
+                <button
+                  onClick={() => setSearchTerm('')}
+                  style={{
+                    position: 'absolute',
+                    right: '8px',
+                    background: 'transparent',
+                    border: 'none',
+                    color: 'var(--text-muted)',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center'
+                  }}
+                >
+                  <X size={14} />
+                </button>
+              )}
+            </div>
+
+            {Object.values(columnFilters).some(v => Array.isArray(v) ? v.length > 0 : Boolean(v && String(v).trim())) && (
+              <button
+                onClick={() => setColumnFilters({})}
+                style={{
                   background: 'transparent',
                   border: 'none',
-                  color: 'var(--text-muted)',
+                  color: '#ef4444',
+                  fontSize: '11px',
+                  fontWeight: 600,
                   cursor: 'pointer',
-                  display: 'flex',
-                  alignItems: 'center'
+                  padding: '0 4px',
+                  whiteSpace: 'nowrap'
                 }}
+                title="Clear all active column filters"
               >
-                <X size={14} />
+                Clear Filters ✕
               </button>
             )}
           </div>
@@ -743,14 +1244,14 @@ const SearchableTable: React.FC<{ children?: React.ReactNode; questionText?: str
             position: 'relative'
           }}>
             <table style={{ width: '100%', borderCollapse: 'separate', borderSpacing: 0, fontSize: '13.5px' }}>
-              {thead}
+              {customThead}
               <tbody>
                 {paginatedRows.length > 0 ? (
                   paginatedRows
                 ) : (
                   <tr>
                     <td colSpan={100} style={{ padding: '24px 16px', textAlign: 'center', color: 'var(--text-secondary)', fontSize: '13px' }}>
-                      🔍 No table records match "<strong>{searchTerm}</strong>".
+                      🔍 No table records match filters.
                     </td>
                   </tr>
                 )}

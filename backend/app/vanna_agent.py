@@ -81,15 +81,40 @@ Always use the `run_sql` tool to execute valid PostgreSQL SQL queries. DO NOT gu
 
 === MANDATORY BUSINESS RULES ===
 - NEVER search using `complaint.title` or `complaint.description`. Always search standard master table values (`category_master.category_name` or `sub_category_master.sub_category_name`).
+- NEVER perform `SELECT * FROM complaint`. ALWAYS select specific relevant summary columns (e.g. `c.id`, `c.complaint_number`, `c.title`, `cat.category_name`, `w.ward_name`, `c.created_at`). Do NOT return 30+ raw DB columns (`citizen_id`, `category_id`, `latitude`, `longitude`, `description`, etc.) unless specifically requested.
 - When searching for category and/or sub_category, always use AND operator between them.
+- ALWAYS convert database text fields to lowercase using `LOWER(col_name)` and compare against lowercase search strings.
 - Support queries in both English and Marathi (मराठी).
+- NEVER dump raw row text, pipe-delimited data lines, or CSV preview text in your text response. Keep text responses brief (1 sentence).
 
-CRITICAL POSTGRESQL ILIKE PATTERN MATCHING RULES:
-1. ALWAYS use `ILIKE '%keyword%'` with `%` wildcards when filtering by ward names (`ward_master.ward_name`), department names (`department_master.department_name`), category names (`category_master.category_name`), or sub-category names (`sub_category_master.sub_category_name`).
-   - DO NOT use exact equality `=` for names! E.g., ward names in DB are compound like 'Aundh - Baner', so `ward_name = 'Baner'` returns 0. ALWAYS use `w.ward_name ILIKE '%Baner%'`!
-   - E.g., category name for road is 'Roads & Traffic Infrastructure', so `category_name = 'Road'` returns 0. ALWAYS use `cat.category_name ILIKE '%Road%'`!
+CRITICAL POSTGRESQL ILIKE & WARD ALIAS MATCHING RULES:
+1. WARD NAME ALIAS MAPPING:
+   - `bibdewadi` / `bibvewadi` / `bibdevadi` / `bibwewadi` maps to DB ward 'Bibwewadi'. ALWAYS filter ward with `(LOWER(w.ward_name) ILIKE '%bibwewadi%' OR LOWER(w.ward_name) ILIKE '%bib%')`!
+   - `kasba` / `kasbapeth` maps to 'Kasba - Vishrambaugwada' (`LOWER(w.ward_name) ILIKE '%kasba%'`).
+   - `aundh` / `baner` maps to 'Aundh - Baner' (`LOWER(w.ward_name) ILIKE '%aundh%'` OR `LOWER(w.ward_name) ILIKE '%baner%'`).
+   - `hadapsar` / `mundhwa` maps to 'Hadapsar - Mundhwa' (`LOWER(w.ward_name) ILIKE '%hadapsar%'`).
+   - `kothrud` / `bavdhan` maps to 'Kothrud - Bavdhan' (`LOWER(w.ward_name) ILIKE '%kothrud%'`).
+   - `sinhagad` / `sinhgad` maps to 'Sinhgad Road' (`LOWER(w.ward_name) ILIKE '%sinh%'`).
+   - `wanowrie` / `wanawadi` / `ramtekdi` maps to 'Wanawadi - Ramtekadi' (`LOWER(w.ward_name) ILIKE '%wan%'`).
+   - `yerwada` / `yerawada` / `dhanori` maps to 'Yerawada - Kalas - Dhanori' (`LOWER(w.ward_name) ILIKE '%yer%'`).
+   - `nagar road` / `vadgaon sheri` maps to 'Nagar Road - Vadgaonsheri' (`LOWER(w.ward_name) ILIKE '%nagar%'`).
+   - `dhankawadi` / `sahakarnagar` maps to 'Dhankawadi - Sahakarnagar' (`LOWER(w.ward_name) ILIKE '%dhankawadi%'`).
+   - `shivajinagar` / `ghole road` maps to 'Shivajinagar - Gholeroad' (`LOWER(w.ward_name) ILIKE '%shivaji%'`).
+   - `warje` / `karvenagar` maps to 'Warje - Karvenagar' (`LOWER(w.ward_name) ILIKE '%warje%'`).
+   - `kondhwa` / `yewalewadi` maps to 'Kondhwa - Yewalewadi' (`LOWER(w.ward_name) ILIKE '%kondhwa%'`).
+   - `dhole patil` / `dholepatil` maps to 'Dholepatil' (`LOWER(w.ward_name) ILIKE '%dhole%'`).
+   - `bhavani peth` / `bhawani peth` maps to 'Bhawani Peth' (`LOWER(w.ward_name) ILIKE '%bhawani%'` OR `LOWER(w.ward_name) ILIKE '%bhavani%'`).
+
+CRITICAL DATE RANGE & YEAR CONTEXT RULES:
+1. CURRENT SYSTEM YEAR IS 2026 (Today is September 2026).
+2. When the user specifies a date range without an explicit year (e.g., '17 march to 2 september', '17 march to 2 septamber', '17 march to 2 sept'), map the year to 2026!
+   - Example: '17 march to 2 septamber' -> `c.created_at >= '2026-03-17 00:00:00' AND c.created_at <= '2026-09-02 23:59:59'` (or `c.created_at::date BETWEEN '2026-03-17' AND '2026-09-02'`).
+3. Correct common month typos: 'septamber' -> September (09), 'march' -> March (03), 'janury' -> January (01), 'february' -> February (02), etc.
+4. DO NOT hardcode old years like 2023 or 2022 unless explicitly specified by the user.
+
 2. JOIN `complaint` table with `ward_master` (`c.ward_id = w.id`) and `category_master` (`c.category_id = cat.id`) when computing location & category totals.
 """
+
 
 
 # 4. Configure Agent Memory
